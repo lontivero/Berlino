@@ -1,0 +1,18 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+    <PropertyGroup>
+        <TargetFramework>net7.0</TargetFramework>
+        <RootNamespace>Berlino</RootNamespace>
+        <RestorePackagesWithLockFile>true</RestorePackagesWithLockFile>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <Compile Include="Prelude.fs" />
+        <Compile Include="Wallet.fs" />
+    </ItemGroup>
+
+    <ItemGroup>
+      <PackageReference Include="NBitcoin" Version="7.0.27" />
+    </ItemGroup>
+
+</Project>
