@@ -20,6 +20,16 @@ module Utils =
                 dict.Add(c, value)
                 value
 
+[<AutoOpen; RequireQualifiedAccess>]
+module Seq =
+    let exceptBy excluded predicate ls =
+        ls |> Seq.filter (fun x -> excluded |> Seq.exists (predicate x) |> not )
+
+    let join (innerSequence : 'b seq) outerKeySelector innerKeySelector (outerSequence : 'a seq) =
+        outerSequence.Join(innerSequence,
+            Func<_, _>(outerKeySelector), Func<_, _>(innerKeySelector),
+            fun outer inner -> (outer, inner))
+
 type State<'s, 'a> = ('s -> 'a * 's)
 
 [<AutoOpen>]

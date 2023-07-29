@@ -33,6 +33,8 @@ module Wallet =
             KeyPath : KeyPath
         }
 
+        type ScriptPubKeyInfoSet = ScriptPubKeyInfo seq
+
         let create (extPubKey : ExtPubKey) (fingerprint : HDFingerprint) (keyPath : KeyPath) scriptType scriptPurpose minGapLimit =
             {
                 ExtPubKey = extPubKey
@@ -74,6 +76,39 @@ module Wallet =
 
         let getScriptPubKeys indexedGenerators =
             Seq.collect (fun (sg, i) -> deriveRange sg 0u i) indexedGenerators
+
+    [<RequireQualifiedAccess>]
+    module Outputs =
+        open ScriptPubKeyDescriptor
+
+        [<CustomEquality; NoComparison>]
+        type Output =
+            {
+                OutPoint : OutPoint
+                Amount : Money
+                ScriptPubKeyInfo : ScriptPubKeyInfo
+                CreatedBy : Transaction
+            }
+            override this.GetHashCode () = this.OutPoint.GetHashCode()
+            override this.Equals other =
+                match other with
+                | :? Output as o -> o.OutPoint.Equals this.OutPoint
+                | _ -> false
+            interface IEquatable<Output> with
+                member this.Equals other = other.OutPoint.Equals this.OutPoint
+
+        type OutputSet = Output seq
+
+        let discoverOutputs (scriptPubKeyInfoSet : ScriptPubKeyInfoSet) (tx : Transaction) =
+            tx.Outputs
+            |> Seq.indexed
+            |> Seq.join scriptPubKeyInfoSet (fun (_, output) -> output.ScriptPubKey) (fun spki -> spki.ScriptPubKey)
+            |> Seq.map (fun ((i, output), spkInfo) -> {
+                OutPoint = OutPoint(tx, uint i)
+                Amount = output.Value
+                ScriptPubKeyInfo = spkInfo
+                CreatedBy = tx
+                })
 
     [<RequireQualifiedAccess>]
     module Knowledge =
@@ -147,4 +182,29 @@ module Wallet =
 
     let getNextScriptPubKeyForCoinjoin scriptType : WalletTransformer<ScriptPubKeyInfo> =
         getNextScriptPubKey scriptType ScriptPurpose.CoinJoin ""
+
+    let processTransaction tx : WalletTransformer<Outputs.OutputSet> =
+        fun wallet ->
+            let scriptPubKeys = getAllScriptPubKeys wallet
+            let newOutputs = Outputs.discoverOutputs scriptPubKeys tx
+
+            let metadata =
+                newOutputs
+                |> Seq.map (fun x -> x.ScriptPubKeyInfo.KeyPath)
+                |> Seq.except (wallet.Metadata |> List.map fst)
+                |> Seq.map (fun keypath -> keypath, "__discovered__")
+                |> Seq.toList
+
+            let newWallet = { wallet with Metadata = metadata @ wallet.Metadata }
+            newOutputs, newWallet
+
+    let processTransactions (txs : Transaction list) : WalletTransformer<Outputs.OutputSet> =
+        fun wallet ->
+            ((Seq.empty<Outputs.Output>, wallet), txs)
+            ||> List.fold (fun (outputs, wallet) tx ->
+                let discovery = state {
+                    let! discoveredOutputs = processTransaction tx
+                    return outputs |> Seq.append discoveredOutputs
+                }
+                discovery |> State.run wallet)
 
