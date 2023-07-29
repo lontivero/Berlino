@@ -72,4 +72,31 @@ module Wallet =
                 yield derive (sg, i)
             }
 
+    open ScriptPubKeyDescriptor
 
+    type Wallet = {
+        Network : Network
+        Descriptors : ScriptPubKeyDescriptor list
+    }
+
+    let recover (mnemonic : Mnemonic) (network : Network) =
+        let masterExtKey = mnemonic.DeriveExtKey()
+        let fingerprint = masterExtKey.Neuter().PubKey.GetHDFingerPrint();
+        let segwitKeyPath = KeyPath.Parse("m/84'/0'/0'")
+        let taprootKeyPath = KeyPath.Parse("m/86'/0'/0'")
+        let segwitExtPubKey = masterExtKey.Derive(segwitKeyPath).Neuter()
+        let taprootExtPubKey = masterExtKey.Derive(taprootKeyPath).Neuter()
+        {
+            Network = network
+            Descriptors = [
+                create segwitExtPubKey  fingerprint segwitKeyPath ScriptType.P2WPKH ScriptPurpose.Receiving 20u
+                create segwitExtPubKey  fingerprint segwitKeyPath ScriptType.P2WPKH ScriptPurpose.Change 10u
+                create taprootExtPubKey fingerprint taprootKeyPath ScriptType.Taproot ScriptPurpose.Receiving 20u
+                create taprootExtPubKey fingerprint taprootKeyPath ScriptType.Taproot ScriptPurpose.Change 10u
+                create taprootExtPubKey fingerprint taprootKeyPath ScriptType.Taproot ScriptPurpose.CoinJoin 30u
+                ]
+        }
+
+    let createNewWallet network =
+        let mnemonic = Mnemonic(Wordlist.English, WordCount.Twelve)
+        recover mnemonic network
