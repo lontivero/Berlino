@@ -87,6 +87,8 @@ module Wallet =
         Metadata : Knowledge.Label list
     }
 
+    type WalletTransformer<'a> = State<Wallet, 'a>
+
     let recover (mnemonic : Mnemonic) (network : Network) =
         let masterExtKey = mnemonic.DeriveExtKey()
         let fingerprint = masterExtKey.Neuter().PubKey.GetHDFingerPrint();
@@ -122,4 +124,27 @@ module Wallet =
             // |> List.filter (fun g -> g.Purpose <> ScriptPurpose.Change)
             |> List.map (fun g -> g, g.Gap + (getNextScriptByKeyPath g.KeyPath wallet))
         getScriptPubKeys generators
+
+    let getNextScriptPubKey scriptType purpose knownBy : WalletTransformer<ScriptPubKeyInfo> =
+        fun (wallet : Wallet) ->
+            let g =
+                wallet.Descriptors
+                |> List.find (fun g -> g.Purpose = purpose && g.ScriptType = scriptType)
+
+            let nextIndex = getNextScriptByKeyPath g.KeyPath wallet
+            let script = derive (g, nextIndex)
+            let newWallet = {
+                wallet with
+                  Metadata = (script.KeyPath, knownBy) :: wallet.Metadata
+            }
+            script, newWallet
+
+    let getNextScriptPubKeyForReceiving scriptType knownBy : WalletTransformer<ScriptPubKeyInfo> =
+        getNextScriptPubKey scriptType ScriptPurpose.Receiving knownBy
+
+    let getNextScriptPubKeyForChange scriptType knownBy : WalletTransformer<ScriptPubKeyInfo> =
+        getNextScriptPubKey scriptType ScriptPurpose.Change knownBy
+
+    let getNextScriptPubKeyForCoinjoin scriptType : WalletTransformer<ScriptPubKeyInfo> =
+        getNextScriptPubKey scriptType ScriptPurpose.CoinJoin ""
 
