@@ -6,6 +6,6 @@ SRC_DIRECTORY=$(pwd)
 git clone --depth 1 .git $TEMP_DIRECTORY
 git diff -P --cached | patch -p1 -d $TEMP_DIRECTORY
 pushd $TEMP_DIRECTORY
-dotnet build
+dotnet test
 popd
 rm -rf $TEMP_DIRECTORY
