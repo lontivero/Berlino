@@ -72,11 +72,19 @@ module Wallet =
                 yield derive (sg, i)
             }
 
+        let getScriptPubKeys indexedGenerators =
+            Seq.collect (fun (sg, i) -> deriveRange sg 0u i) indexedGenerators
+
+    [<RequireQualifiedAccess>]
+    module Knowledge =
+        type Label = KeyPath * string
+
     open ScriptPubKeyDescriptor
 
     type Wallet = {
         Network : Network
         Descriptors : ScriptPubKeyDescriptor list
+        Metadata : Knowledge.Label list
     }
 
     let recover (mnemonic : Mnemonic) (network : Network) =
@@ -95,8 +103,23 @@ module Wallet =
                 create taprootExtPubKey fingerprint taprootKeyPath ScriptType.Taproot ScriptPurpose.Change 10u
                 create taprootExtPubKey fingerprint taprootKeyPath ScriptType.Taproot ScriptPurpose.CoinJoin 30u
                 ]
+            Metadata = []
         }
 
     let createNewWallet network =
         let mnemonic = Mnemonic(Wordlist.English, WordCount.Twelve)
         recover mnemonic network
+
+    let getNextScriptByKeyPath (keyPath : KeyPath) wallet =
+        wallet.Metadata
+        |> List.tryFindBack (fun (k, _) -> k = keyPath)
+        |> Option.map (fun (k, _) -> k.Indexes[-1] + 1u)
+        |> Option.defaultValue 0u
+
+    let getAllScriptPubKeys (wallet : Wallet) =
+        let generators =
+            wallet.Descriptors
+            // |> List.filter (fun g -> g.Purpose <> ScriptPurpose.Change)
+            |> List.map (fun g -> g, g.Gap + (getNextScriptByKeyPath g.KeyPath wallet))
+        getScriptPubKeys generators
+
