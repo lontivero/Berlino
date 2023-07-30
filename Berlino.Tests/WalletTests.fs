@@ -46,7 +46,7 @@ module Wallet =
             ] )
 
     [<Fact>]
-    let ``Can compute entities who known about outputs`` () =
+    let ``Can compute entities who know about outputs`` () =
         state {
             let! destination, change = createDestinations ()
             let! outputs = generateTransactionChain destination change
