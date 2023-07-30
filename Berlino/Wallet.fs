@@ -99,6 +99,28 @@ module Wallet =
 
         type OutputSet = Output seq
 
+        let keyPath output = output.ScriptPubKeyInfo.KeyPath
+
+        let spent = memoize (
+            fun (outputs : OutputSet) ->
+                let allInputsSpent =
+                    outputs
+                    |> Seq.collect (fun output -> output.CreatedBy.Inputs)
+                    |> Seq.map (fun input -> input.PrevOut)
+                    |> Seq.toList
+                outputs
+                |> Seq.filter (fun o -> allInputsSpent |> Seq.contains o.OutPoint))
+
+        let unspent = memoize (
+            fun (outputs : OutputSet) ->
+                outputs
+                |> Seq.except (spent outputs))
+
+        let balance outputs =
+            outputs
+            |> unspent
+            |> Seq.sumBy (fun x -> x.Amount)
+
         let discoverOutputs (scriptPubKeyInfoSet : ScriptPubKeyInfoSet) (tx : Transaction) =
             tx.Outputs
             |> Seq.indexed

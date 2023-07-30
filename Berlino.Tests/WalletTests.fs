@@ -32,6 +32,7 @@ module Wallet =
 
         let utxoExistingWallet, existingWallet  = transactionChain |> State.run usedWallet
         let utxoRecoveredWallet, recoveredWallet = transactionChain |> State.run newWallet
+        Assert.Equal(Money.Coins 0.3m, Outputs.balance utxoExistingWallet)
         Assert.Equal<Outputs.Output seq>(utxoRecoveredWallet, utxoExistingWallet)
         Assert.Equal<Set<string * string>>(
             existingWallet.Metadata |> List.map (fun (k,v) -> k.ToString(), v) |> Set.ofList, Set [
