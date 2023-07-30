@@ -52,11 +52,11 @@ module Wallet =
             let! outputs = generateTransactionChain destination change
 
             let! wallet = State.get
-            let firstOutput = outputs |> Seq.head |> fun x -> x.OutPoint;
+            let firstOutput = outputs |> Seq.find (fun x -> x.ScriptPubKeyInfo = change) |> fun x -> x.OutPoint;
             let knownBy = outputs |> Knowledge.knownBy firstOutput wallet.Metadata
             Assert.Equal(["Lucas"; "Pablo"], knownBy)
 
-            let secondOutput = outputs |> Seq.last |> fun x -> x.OutPoint;
+            let secondOutput = outputs |> Seq.find (fun x -> x.ScriptPubKeyInfo = destination) |> fun x -> x.OutPoint;
             let knownBy = outputs |> Knowledge.knownBy secondOutput wallet.Metadata
             Assert.Equal(["Lucas"], knownBy)
         } |> State.run (createNewWallet Network.Main)

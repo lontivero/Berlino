@@ -26,14 +26,30 @@ module Wallet =
             Gap : uint
         }
 
-        type ScriptPubKeyInfo = {
-            ScriptPubKey : Script
-            Index : uint
-            Generator: ScriptPubKeyDescriptor
-            KeyPath : KeyPath
-        }
+        [<CustomEquality;CustomComparison>]
+        type ScriptPubKeyInfo =
+            {
+                ScriptPubKey : Script
+                Index : uint
+                Generator: ScriptPubKeyDescriptor
+                KeyPath : KeyPath
+            }
+            override this.GetHashCode () = this.ScriptPubKey.GetHashCode()
+            override this.Equals obj =
+                match obj with
+                | :? ScriptPubKeyInfo as other -> compare this other = 0
+                | _ -> false
+            interface IComparable<ScriptPubKeyInfo> with
+                member this.CompareTo other =
+                    BytesComparer.Instance.Compare (this.ScriptPubKey.ToBytes(true), other.ScriptPubKey.ToBytes(true))
+            interface IComparable with
+                member this.CompareTo obj =
+                    match obj with
+                    | null -> 1
+                    | :? ScriptPubKeyInfo as other -> (this :> IComparable<_>).CompareTo other
+                    | _                            -> invalidArg "obj" "not a ScriptPubKeyInfo"
 
-        type ScriptPubKeyInfoSet = ScriptPubKeyInfo seq
+        type ScriptPubKeyInfoSet = Set<ScriptPubKeyInfo>
 
         let create (extPubKey : ExtPubKey) (fingerprint : HDFingerprint) (keyPath : KeyPath) scriptType scriptPurpose minGapLimit =
             {
@@ -76,12 +92,14 @@ module Wallet =
 
         let getScriptPubKeys indexedGenerators =
             Seq.collect (fun (sg, i) -> deriveRange sg 0u i) indexedGenerators
+            |> Set.ofSeq
+
 
     [<RequireQualifiedAccess>]
     module Outputs =
         open ScriptPubKeyDescriptor
 
-        [<CustomEquality; NoComparison>]
+        [<CustomEquality; CustomComparison>]
         type Output =
             {
                 OutPoint : OutPoint
@@ -90,14 +108,26 @@ module Wallet =
                 CreatedBy : Transaction
             }
             override this.GetHashCode () = this.OutPoint.GetHashCode()
-            override this.Equals other =
-                match other with
-                | :? Output as o -> o.OutPoint.Equals this.OutPoint
+            override this.Equals obj =
+                match obj with
+                | :? Output as other -> compare this other = 0
                 | _ -> false
             interface IEquatable<Output> with
                 member this.Equals other = other.OutPoint.Equals this.OutPoint
+            interface IComparable<Output> with
+                member this.CompareTo other =
+                    match this.OutPoint.Hash.CompareTo other.OutPoint.Hash with
+                    | 0 -> this.OutPoint.N.CompareTo other.OutPoint.N
+                    | x -> x
+            interface IComparable with
+                member this.CompareTo obj =
+                    match obj with
+                    | null -> 1
+                    | :? Output as other -> (this :> IComparable<_>).CompareTo other
+                    | _                  -> invalidArg "obj" "not an Output"
 
-        type OutputSet = Output seq
+        let amount output = output.Amount
+        type OutputSet = Set<Output>
 
         let keyPath output = output.ScriptPubKeyInfo.KeyPath
 
@@ -107,19 +137,18 @@ module Wallet =
                     outputs
                     |> Seq.collect (fun output -> output.CreatedBy.Inputs)
                     |> Seq.map (fun input -> input.PrevOut)
-                    |> Seq.toList
-                outputs
-                |> Seq.filter (fun o -> allInputsSpent |> Seq.contains o.OutPoint))
+                    |> Seq.cache
 
-        let unspent = memoize (
-            fun (outputs : OutputSet) ->
                 outputs
-                |> Seq.except (spent outputs))
+                |> Set.filter (fun o -> allInputsSpent |> Seq.contains o.OutPoint))
+
+        let unspent (outputs : OutputSet) =
+            outputs - (spent outputs)
 
         let balance outputs =
             outputs
             |> unspent
-            |> Seq.sumBy (fun x -> x.Amount)
+            |> Seq.sumBy amount
 
         let discoverOutputs (scriptPubKeyInfoSet : ScriptPubKeyInfoSet) (tx : Transaction) =
             tx.Outputs
@@ -131,9 +160,11 @@ module Wallet =
                 ScriptPubKeyInfo = spkInfo
                 CreatedBy = tx
                 })
+            |> Set.ofSeq
 
     [<RequireQualifiedAccess>]
     module Knowledge =
+
         type Label = KeyPath * string
 
         let knownBy outpoint (metadata : Label list) (outputs : Outputs.OutputSet) =
@@ -144,7 +175,7 @@ module Wallet =
             let rec kb (outpoint : OutPoint) = seq {
                 let o, theOneWhoKnowThisOne =
                     outputsWithKnowledge
-                    |> Seq.find (fun (o,k) -> o.OutPoint = outpoint)
+                    |> Seq.find (fun (o,_) -> o.OutPoint = outpoint)
                 yield theOneWhoKnowThisOne
                 let thoseWhoKnowAncestors =
                     o.CreatedBy.Inputs
@@ -227,23 +258,23 @@ module Wallet =
             let scriptPubKeys = getAllScriptPubKeys wallet
             let newOutputs = Outputs.discoverOutputs scriptPubKeys tx
 
-            let metadata =
+            let withoutMetadata =
                 newOutputs
                 |> Seq.map (fun x -> x.ScriptPubKeyInfo.KeyPath)
                 |> Seq.except (wallet.Metadata |> List.map fst)
                 |> Seq.map (fun keypath -> keypath, "__discovered__")
                 |> Seq.toList
 
-            let newWallet = { wallet with Metadata = metadata @ wallet.Metadata }
+            let newWallet = { wallet with Metadata = withoutMetadata @ wallet.Metadata }
             newOutputs, newWallet
 
     let processTransactions (txs : Transaction list) : WalletTransformer<Outputs.OutputSet> =
         fun wallet ->
-            ((Seq.empty<Outputs.Output>, wallet), txs)
+            ((Set.empty<Outputs.Output>, wallet), txs)
             ||> List.fold (fun (outputs, wallet) tx ->
                 let discovery = state {
                     let! discoveredOutputs = processTransaction tx
-                    return outputs |> Seq.append discoveredOutputs
+                    return outputs |> Set.union discoveredOutputs
                 }
                 discovery |> State.run wallet)
 
