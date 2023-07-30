@@ -1,0 +1,8 @@
+[Bb]in/
+[Oo]bj/
+
+# IDE garbage
+.idea/
+.vscode/
+
+*DotSettings.user
