@@ -136,6 +136,23 @@ module Wallet =
     module Knowledge =
         type Label = KeyPath * string
 
+        let knownBy outpoint (metadata : Label list) (outputs : Outputs.OutputSet) =
+            let outputsWithKnowledge =
+                outputs
+                |> Seq.join metadata Outputs.keyPath fst
+                |> Seq.map (fun (output, (_, knownBy)) -> output, knownBy)
+            let rec kb (outpoint : OutPoint) = seq {
+                let o, theOneWhoKnowThisOne =
+                    outputsWithKnowledge
+                    |> Seq.find (fun (o,k) -> o.OutPoint = outpoint)
+                yield theOneWhoKnowThisOne
+                let thoseWhoKnowAncestors =
+                    o.CreatedBy.Inputs
+                    |> Seq.collect (fun i -> kb i.PrevOut)
+                yield! thoseWhoKnowAncestors
+                }
+            kb outpoint |> Set.ofSeq
+
     open ScriptPubKeyDescriptor
 
     type Wallet = {

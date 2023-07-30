@@ -45,3 +45,19 @@ module Wallet =
                 "84'/0'/0'/0/0", "__discovered__"
             ] )
 
+    [<Fact>]
+    let ``Can compute entities who known about outputs`` () =
+        state {
+            let! destination, change = createDestinations ()
+            let! outputs = generateTransactionChain destination change
+
+            let! wallet = State.get
+            let firstOutput = outputs |> Seq.head |> fun x -> x.OutPoint;
+            let knownBy = outputs |> Knowledge.knownBy firstOutput wallet.Metadata
+            Assert.Equal(["Lucas"; "Pablo"], knownBy)
+
+            let secondOutput = outputs |> Seq.last |> fun x -> x.OutPoint;
+            let knownBy = outputs |> Knowledge.knownBy secondOutput wallet.Metadata
+            Assert.Equal(["Lucas"], knownBy)
+        } |> State.run (createNewWallet Network.Main)
+
