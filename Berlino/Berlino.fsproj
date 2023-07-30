@@ -8,11 +8,13 @@
 
     <ItemGroup>
         <Compile Include="Prelude.fs" />
+        <Compile Include="Serialization.fs" />
         <Compile Include="Wallet.fs" />
     </ItemGroup>
 
     <ItemGroup>
       <PackageReference Include="NBitcoin" Version="7.0.27" />
+      <PackageReference Include="Thoth.Json.Net" Version="11.0.0" />
     </ItemGroup>
 
 </Project>

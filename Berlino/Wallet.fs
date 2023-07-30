@@ -2,6 +2,7 @@
 
 open System
 open NBitcoin
+open Thoth.Json.Net
 
 module Wallet =
 
@@ -93,6 +94,61 @@ module Wallet =
         let getScriptPubKeys indexedGenerators =
             Seq.collect (fun (sg, i) -> deriveRange sg 0u i) indexedGenerators
             |> Set.ofSeq
+
+        [<RequireQualifiedAccess>]
+        module Decode =
+            open Berlino.Serialization
+
+            let scriptPurpose : Decoder<ScriptPurpose> =
+                Decode.string |> Decode.andThen (function
+                    | "receiving" -> Decode.succeed ScriptPurpose.Receiving
+                    | "change"    -> Decode.succeed ScriptPurpose.Change
+                    | "coinjoin"  -> Decode.succeed ScriptPurpose.CoinJoin
+                    | purpose -> Decode.fail $"Unknown script's purpose '{purpose}'")
+
+            let scriptType : Decoder<ScriptType> =
+                Decode.string |> Decode.andThen (function
+                    | "taproot" -> Decode.succeed ScriptType.Taproot
+                    | "wpkh"    -> Decode.succeed ScriptType.P2WPKH
+                    | scriptType -> Decode.fail $"Unknown script's type '{scriptType}'")
+
+            let scriptPubKeyDescriptor (network : Network) : Decoder<ScriptPubKeyDescriptor> =
+                Decode.object(fun get -> {
+                    ExtPubKey = get.Required.Field "extPubKey" (Decode.extPubKey network)
+                    Fingerprint = get.Required.Field "fingerprint" Decode.fingerprint
+                    ScriptType = get.Required.Field "scriptType" scriptType
+                    Purpose = get.Required.Field "scriptPurpose" scriptPurpose
+                    KeyPath = get.Required.Field "keyPath" Decode.keyPath
+                    Gap = get.Required.Field "gap" Decode.uint32
+                })
+
+        [<RequireQualifiedAccess>]
+        module Encode =
+            open Berlino.Serialization
+
+            let scriptPurpose (scriptPurpose : ScriptPurpose) =
+                match scriptPurpose with
+                | ScriptPurpose.Receiving -> "receiving"
+                | ScriptPurpose.Change -> "change"
+                | ScriptPurpose.CoinJoin -> "coinjoin"
+                |> Encode.string
+
+            let scriptType (scriptType : ScriptType) =
+                match scriptType with
+                | ScriptType.Taproot -> "taproot"
+                | ScriptType.P2WPKH -> "wpkh"
+                | _ -> failwith $"Unsupported script type {scriptType}"
+                |> Encode.string
+
+            let scriptPubKeyDescriptor (network : Network) (d : ScriptPubKeyDescriptor) =
+                Encode.object [
+                    "extPubKey", Encode.extPubKey d.ExtPubKey network
+                    "fingerprint", Encode.fingerprint d.Fingerprint
+                    "scriptType", scriptType d.ScriptType
+                    "scriptPurpose", scriptPurpose d.Purpose
+                    "keyPath", Encode.keyPath d.KeyPath
+                    "gap", Encode.uint32 d.Gap
+                ]
 
 
     [<RequireQualifiedAccess>]
