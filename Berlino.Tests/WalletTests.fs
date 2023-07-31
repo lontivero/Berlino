@@ -61,3 +61,16 @@ module Wallet =
             Assert.Equal(["Lucas"], knownBy)
         } |> State.run (createNewWallet Network.Main)
 
+    open Thoth.Json.Net
+
+    [<Fact>]
+    let ``Can (de)-serialize wallet`` () =
+        state {
+            let! _ = createDestinations () // just to generate the metadata
+
+            let! wallet = State.get
+            let serializedWallet = Encode.toString 0 (Encode.wallet wallet)
+            let deserializedWalletResult = Decode.fromString Decode.wallet serializedWallet
+            Assert.Equal (Ok wallet, deserializedWalletResult)
+        } |> State.run (createNewWallet Network.Main)
+

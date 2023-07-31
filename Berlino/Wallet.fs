@@ -240,6 +240,25 @@ module Wallet =
                 }
             kb outpoint |> Set.ofSeq
 
+        [<RequireQualifiedAccess>]
+        module Decode =
+            open Berlino.Serialization
+
+            let metadata : Decoder<(KeyPath * string) list> =
+                Decode.string
+                |> Decode.keyValuePairs
+                |> Decode.map (List.collect (fun (k,v) -> [KeyPath k,v]))
+
+        [<RequireQualifiedAccess>]
+        module Encode =
+            open Berlino.Serialization
+
+            let metadata (metadata : Label list) =
+                metadata
+                |> List.map (fun (kp, l) -> kp.ToString(), Encode.string l)
+                |> Encode.object
+
+
     open ScriptPubKeyDescriptor
 
     type Wallet = {
@@ -248,6 +267,29 @@ module Wallet =
         Metadata : Knowledge.Label list
     }
 
+    [<RequireQualifiedAccess>]
+    module Decode =
+        open Berlino.Serialization
+
+        let wallet : Decoder<Wallet> =
+            Decode.object (fun get ->
+                let network = get.Required.Field "network" Decode.network
+                {
+                    Network = network
+                    Descriptors = get.Required.Field "descriptors" (Decode.list (Decode.scriptPubKeyDescriptor network))
+                    Metadata = get.Required.Field "metadata" Knowledge.Decode.metadata
+                })
+
+    [<RequireQualifiedAccess>]
+    module Encode =
+        open Berlino.Serialization
+
+        let wallet (wallet : Wallet) =
+            Encode.object [
+                "network", wallet.Network |> Encode.network
+                "descriptors", wallet.Descriptors |> List.map (Encode.scriptPubKeyDescriptor wallet.Network) |> Encode.list
+                "metadata", wallet.Metadata |> Knowledge.Encode.metadata
+             ]
     type WalletTransformer<'a> = State<Wallet, 'a>
 
     let recover (mnemonic : Mnemonic) (network : Network) =
