@@ -9,6 +9,7 @@
     <ItemGroup>
         <Compile Include="Prelude.fs" />
         <Compile Include="Serialization.fs" />
+        <Compile Include="RpcClient.fs" />
         <Compile Include="Wallet.fs" />
     </ItemGroup>
 

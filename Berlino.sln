@@ -9,6 +9,8 @@ Project("{F2A71F9B-5D33-465A-A702-920D77279786}") = "Berlino.Tests", "Berlino.Te
 EndProject
 Project("{F2A71F9B-5D33-465A-A702-920D77279786}") = "FilterBuilder", "FilterBuilder\FilterBuilder.fsproj", "{4A407DE3-5FCC-4893-8840-0A44AAF86BD9}"
 EndProject
+Project("{F2A71F9B-5D33-465A-A702-920D77279786}") = "FilterBuilder.Tests", "FilterBuilder.Tests\FilterBuilder.Tests.fsproj", "{4FDC3EA4-5299-444A-9CED-B1B3223893C5}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -58,5 +60,17 @@ Global
 		{4A407DE3-5FCC-4893-8840-0A44AAF86BD9}.Release|x64.Build.0 = Release|Any CPU
 		{4A407DE3-5FCC-4893-8840-0A44AAF86BD9}.Release|x86.ActiveCfg = Release|Any CPU
 		{4A407DE3-5FCC-4893-8840-0A44AAF86BD9}.Release|x86.Build.0 = Release|Any CPU
+		{4FDC3EA4-5299-444A-9CED-B1B3223893C5}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{4FDC3EA4-5299-444A-9CED-B1B3223893C5}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{4FDC3EA4-5299-444A-9CED-B1B3223893C5}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{4FDC3EA4-5299-444A-9CED-B1B3223893C5}.Debug|x64.Build.0 = Debug|Any CPU
+		{4FDC3EA4-5299-444A-9CED-B1B3223893C5}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{4FDC3EA4-5299-444A-9CED-B1B3223893C5}.Debug|x86.Build.0 = Debug|Any CPU
+		{4FDC3EA4-5299-444A-9CED-B1B3223893C5}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{4FDC3EA4-5299-444A-9CED-B1B3223893C5}.Release|Any CPU.Build.0 = Release|Any CPU
+		{4FDC3EA4-5299-444A-9CED-B1B3223893C5}.Release|x64.ActiveCfg = Release|Any CPU
+		{4FDC3EA4-5299-444A-9CED-B1B3223893C5}.Release|x64.Build.0 = Release|Any CPU
+		{4FDC3EA4-5299-444A-9CED-B1B3223893C5}.Release|x86.ActiveCfg = Release|Any CPU
+		{4FDC3EA4-5299-444A-9CED-B1B3223893C5}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 EndGlobal

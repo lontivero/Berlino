@@ -1,8 +1,38 @@
 module Filters
 
+    open System
+    open FilterBuilder.RpcClient
     open NBitcoin
 
     module Building =
+        open Berlino
+        open RpcClient
+
+        let build (block : VerboseBlockInfo) =
+            let isSupportedKeyType t =
+                t = "witness_v0_keyhash" || t = "witness_v1_taproot"
+
+            let relevantScripts outputs =
+                outputs
+                |> Seq.filter (fun o -> isSupportedKeyType o.PubKeyType)
+                |> Seq.map (fun o -> o.ScriptPubKey)
+
+            let spent =
+                block.Transactions
+                |> Seq.collect (fun t -> t.Inputs)
+                |> Seq.map (fun i -> i.PrevOutput)
+
+            let received =
+                block.Transactions
+                |> Seq.collect (fun t -> t.Outputs)
+
+            let scripts = relevantScripts ( spent |> Seq.append received )
+            GolombRiceFilterBuilder()
+                .SetKey(block.Hash)
+                .SetP(24)
+                .SetM(1u <<< 24)
+                .AddEntries(scripts).Build()
+
 
         let taprootActivation (network : Network) =
             match network.Name with

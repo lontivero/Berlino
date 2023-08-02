@@ -65,3 +65,15 @@ module State =
 
     let state = StateBuilder()
 
+module Runner =
+    let loopWhile state predicate doWork =
+        let rec loop state = async {
+            if predicate state then
+                let! newState = doWork state
+                do! loop newState
+        }
+        loop state
+
+    let forever state doWork =
+        loopWhile state (fun _ -> true) doWork
+
