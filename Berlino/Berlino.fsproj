@@ -14,8 +14,9 @@
     </ItemGroup>
 
     <ItemGroup>
-      <PackageReference Include="NBitcoin" Version="7.0.27" />
-      <PackageReference Include="Thoth.Json.Net" Version="11.0.0" />
+      <PackageReference Include="FSharpPlus" />
+      <PackageReference Include="NBitcoin" />
+      <PackageReference Include="Thoth.Json.Net" />
     </ItemGroup>
 
 </Project>

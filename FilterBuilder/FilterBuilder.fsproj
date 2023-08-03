@@ -12,8 +12,7 @@
     </ItemGroup>
 
     <ItemGroup>
-      <PackageReference Include="Newtonsoft.Json" Version="13.0.3" />
-      <PackageReference Include="Thoth.Json.Net" Version="11.0.0" />
+      <PackageReference Include="Thoth.Json.Net" />
     </ItemGroup>
 
     <ItemGroup>
