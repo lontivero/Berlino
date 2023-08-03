@@ -20,6 +20,8 @@ module Utils =
                 dict.Add(c, value)
                 value
 
+    let exnAsString (e : exn) = e.ToString()
+
 [<AutoOpen; RequireQualifiedAccess>]
 module Seq =
     let exceptBy excluded predicate ls =
@@ -64,6 +66,42 @@ module State =
             else this.Zero ()
 
     let state = StateBuilder()
+
+[<AutoOpen; RequireQualifiedAccess>]
+module Async =
+    let CatchResult (computation: Async<'T>) : Async<Result<'T, exn>> = async {
+        let! choice = computation |> Async.Catch
+
+        match choice with
+        | Choice1Of2 foo -> return (Ok foo)
+        | Choice2Of2 err -> return (Error err)
+    }
+
+[<AutoOpen; RequireQualifiedAccess>]
+module Result =
+    let requiresOk r =
+        match r with
+        | Ok x -> x
+        | Error e ->
+            raise e
+
+[<AutoOpen; RequireQualifiedAccess>]
+module AsyncResult =
+    let bind f (m : Async<Result<_,_>>) = async {
+        let! x = m
+        return x |> Result.bind f
+    }
+
+    let join (r : Async<Result<Result<_,_>,_>>) =
+        bind id r
+
+    let mapError mapper (r : Async<Result<_,_>>) = async {
+        let! result = r
+        return
+            match result with
+            | Ok x -> Ok x
+            | Error e -> Error (mapper e)
+    }
 
 module Runner =
     let loopWhile state predicate doWork =

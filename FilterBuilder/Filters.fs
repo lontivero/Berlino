@@ -33,6 +33,7 @@ module Filters
                 .SetM(1u <<< 24)
                 .AddEntries(scripts).Build()
 
+        let logError x = Console.WriteLine $"{x}"
 
         let taprootActivation (network : Network) =
             match network.Name with
@@ -52,3 +53,44 @@ module Filters
                 Height = 0
                 |}
             | _ -> failwith $"Unknown network '{network.Name}'"
+
+
+        let startBuilding rpcClient stopAt buildFilter = async {
+
+            let fetchBlock blockHash =
+                async {
+                    let! block = getVerboseBlock blockHash rpcClient
+                    let blockResult = Decode.verboseBlockFromString block.ResultString
+                    return
+                        blockResult
+                        |> Result.map (fun verboseBlockInfo ->
+                            buildFilter verboseBlockInfo
+                            verboseBlockInfo.PrevBlockHash)
+                }
+                |> Async.CatchResult
+                |> AsyncResult.mapError exnAsString
+                |> AsyncResult.join
+
+            let! bci = getBlockchainInfo rpcClient
+            let tipBlock = bci.BestBlockHash
+
+            do! Runner.forever (tipBlock, stopAt)
+                    (fun (fromBlock, toBlock) -> async {
+                        do! Runner.loopWhile fromBlock
+                                (fun curBlock -> curBlock <> toBlock)
+                                (fun curBlock -> async {
+                                    match! fetchBlock curBlock with
+                                    | Ok prevBlockHash ->
+                                        return prevBlockHash
+                                    | Error error ->
+                                        logError error
+                                        do! Async.Sleep (TimeSpan.FromSeconds 2)
+                                        return curBlock
+                                })
+                        let nothingToDo = fromBlock = toBlock
+                        if nothingToDo then do! Async.Sleep (TimeSpan.FromSeconds 10)
+                        let! bci = getBlockchainInfo rpcClient
+                        let newTipBlock = bci.BestBlockHash
+                        return (newTipBlock, fromBlock)
+                    })
+        }
