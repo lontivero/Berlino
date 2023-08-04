@@ -5,20 +5,7 @@ open System.Collections.Generic
 open System.Linq
 
 [<AutoOpen>]
-module Utils =
-    let curry f a b = f (a,b)
-    let uncurry f (a,b) = f a b
-
-    let memoize f =
-        let dict = Dictionary<_, _>()
-        fun c ->
-            let exists, value = dict.TryGetValue c
-            match exists with
-            | true -> value
-            | _ ->
-                let value = f c
-                dict.Add(c, value)
-                value
+module Exception =
 
     let exnAsString (e : exn) = e.ToString()
 
@@ -34,7 +21,7 @@ module Seq =
 
 type State<'s, 'a> = ('s -> 'a * 's)
 
-[<AutoOpen>]
+[<RequireQualifiedAccess>]
 module State =
 
     let inline run state x = let (f) = x in f state
@@ -44,18 +31,20 @@ module State =
         let x, state = run state s
         f x, state)
 
+[<AutoOpen>]
+module StateBuilder =
     type StateBuilder() =
         member this.Zero () = (fun s -> (), s)
         member this.Return x = (fun s -> x, s)
         member inline this.ReturnFrom (x: State<'s, 'a>) = x
         member this.Bind (x, f) : State<'s, 'b> =
             (fun state ->
-                let (result: 'a), state = run state x
-                run state (f result))
+                let (result: 'a), state = State.run state x
+                State.run state (f result))
         member this.Combine (x1: State<'s, 'a>, x2: State<'s, 'b>) =
             (fun state ->
-                let result, state = run state x1
-                run state x2)
+                let result, state = State.run state x1
+                State.run state x2)
         member this.Delay f : State<'s, 'a> = f ()
         member this.For (seq, (f: 'a -> State<'s, 'b>)) =
             seq
@@ -103,7 +92,10 @@ module AsyncResult =
             | Error e -> Error (mapper e)
     }
 
+[<AutoOpen>]
 module Runner =
+    open FSharpPlus
+
     let loopWhile state predicate doWork =
         let rec loop state = async {
             if predicate state then

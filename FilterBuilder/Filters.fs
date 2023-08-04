@@ -2,6 +2,7 @@ module Filters
 
     open System
     open FilterBuilder.RpcClient
+    open Microsoft.FSharp.Core
     open NBitcoin
 
     module Building =
@@ -74,23 +75,20 @@ module Filters
             let! bci = getBlockchainInfo rpcClient
             let tipBlock = bci.BestBlockHash
 
-            do! Runner.forever (tipBlock, stopAt)
-                    (fun (fromBlock, toBlock) -> async {
-                        do! Runner.loopWhile fromBlock
-                                (fun curBlock -> curBlock <> toBlock)
-                                (fun curBlock -> async {
-                                    match! fetchBlock curBlock with
-                                    | Ok prevBlockHash ->
-                                        return prevBlockHash
-                                    | Error error ->
-                                        logError error
-                                        do! Async.Sleep (TimeSpan.FromSeconds 2)
-                                        return curBlock
-                                })
-                        let nothingToDo = fromBlock = toBlock
-                        if nothingToDo then do! Async.Sleep (TimeSpan.FromSeconds 10)
-                        let! bci = getBlockchainInfo rpcClient
-                        let newTipBlock = bci.BestBlockHash
-                        return (newTipBlock, fromBlock)
-                    })
+            do! forever (tipBlock, stopAt) <| fun (fromBlock, toBlock) -> async {
+                do! loopWhile fromBlock (fun curBlock -> curBlock <> toBlock) <| fun curBlock -> async {
+                    match! fetchBlock curBlock with
+                    | Ok prevBlockHash ->
+                        return prevBlockHash
+                    | Error error ->
+                        logError error
+                        do! Async.Sleep (TimeSpan.FromSeconds 2)
+                        return curBlock
+                }
+                let nothingToDo = fromBlock = toBlock
+                if nothingToDo then do! Async.Sleep (TimeSpan.FromSeconds 10)
+                let! bci = getBlockchainInfo rpcClient
+                let newTipBlock = bci.BestBlockHash
+                return (newTipBlock, fromBlock)
+            }
         }

@@ -2,6 +2,7 @@
 
 open System
 open NBitcoin
+open FSharpPlus
 open Thoth.Json.Net
 
 module Wallet =
@@ -50,6 +51,8 @@ module Wallet =
                     | :? ScriptPubKeyInfo as other -> (this :> IComparable<_>).CompareTo other
                     | _                            -> invalidArg "obj" "not a ScriptPubKeyInfo"
 
+        let scriptPubKey spki = spki.ScriptPubKey
+
         type ScriptPubKeyInfoSet = Set<ScriptPubKeyInfo>
 
         let create (extPubKey : ExtPubKey) (fingerprint : HDFingerprint) (keyPath : KeyPath) scriptType scriptPurpose minGapLimit =
@@ -69,13 +72,15 @@ module Wallet =
             | ScriptType.P2PKH -> pubkey.GetScriptPubKey(ScriptPubKeyType.Legacy)
             | _ -> failwith $"Unknown script type {scriptType}"
 
-        let deriveExtPubKeyForPurpose = memoize (
-            fun (extPubKey : ExtPubKey, purpose) ->
-                purpose |> purposeIndex |> extPubKey.Derive)
 
-        let derive = memoize (
-            fun (sg : ScriptPubKeyDescriptor, i : uint) ->
-                deriveExtPubKeyForPurpose (sg.ExtPubKey, sg.Purpose)
+        let deriveExtPubKeyForPurpose =
+            let memoizableFun (extPubKey : ExtPubKey) (purpose : ScriptPurpose) =
+                purpose |> purposeIndex |> extPubKey.Derive
+            memoizeN memoizableFun
+
+        let derive =
+            let memoizableFun (sg : ScriptPubKeyDescriptor) (i : uint) =
+                deriveExtPubKeyForPurpose sg.ExtPubKey sg.Purpose
                 |> fun extPubKey -> extPubKey.Derive(i).PubKey
                 |> getScriptPubKey sg.ScriptType
                 |> fun scp -> {
@@ -83,12 +88,13 @@ module Wallet =
                     Index = i
                     Generator = sg
                     KeyPath = sg.KeyPath.Derive(purposeIndex sg.Purpose).Derive(i)
-                    })
+                    }
+            memoizeN memoizableFun
 
         let deriveRange sg start count =
             seq {
                 for i in start .. start + count - 1u do
-                yield derive (sg, i)
+                yield derive sg i
             }
 
         let getScriptPubKeys indexedGenerators =
@@ -182,21 +188,25 @@ module Wallet =
                     | :? Output as other -> (this :> IComparable<_>).CompareTo other
                     | _                  -> invalidArg "obj" "not an Output"
 
-        let amount output = output.Amount
+        let outputAmount output = output.Amount
+        let outputInputs output = output.CreatedBy.Inputs :> seq<TxIn>
+        let inputPrevOut (input : TxIn) = input.PrevOut
+        let outputPrevOuts output = output |> outputInputs |>> inputPrevOut
+        let outputKeyPath output = output.ScriptPubKeyInfo.KeyPath
+        let outputScriptPubKey output = output.ScriptPubKeyInfo.ScriptPubKey
+
         type OutputSet = Set<Output>
 
-        let keyPath output = output.ScriptPubKeyInfo.KeyPath
-
-        let spent = memoize (
-            fun (outputs : OutputSet) ->
+        let spent =
+            let memoizableFun (outputs : OutputSet) =
                 let allInputsSpent =
                     outputs
-                    |> Seq.collect (fun output -> output.CreatedBy.Inputs)
-                    |> Seq.map (fun input -> input.PrevOut)
+                    |> Seq.collect outputPrevOuts
                     |> Seq.cache
 
                 outputs
-                |> Set.filter (fun o -> allInputsSpent |> Seq.contains o.OutPoint))
+                |> Set.filter (fun o -> allInputsSpent |> Seq.contains o.OutPoint)
+            memoizeN memoizableFun
 
         let unspent (outputs : OutputSet) =
             outputs - (spent outputs)
@@ -204,12 +214,12 @@ module Wallet =
         let balance outputs =
             outputs
             |> unspent
-            |> Seq.sumBy amount
+            |> Seq.sumBy outputAmount
 
         let discoverOutputs (scriptPubKeyInfoSet : ScriptPubKeyInfoSet) (tx : Transaction) =
             tx.Outputs
             |> Seq.indexed
-            |> Seq.join scriptPubKeyInfoSet (fun (_, output) -> output.ScriptPubKey) (fun spki -> spki.ScriptPubKey)
+            |> Seq.join scriptPubKeyInfoSet (fun (_, output) -> output.ScriptPubKey) scriptPubKey
             |> Seq.map (fun ((i, output), spkInfo) -> {
                 OutPoint = OutPoint(tx, uint i)
                 Amount = output.Value
@@ -226,17 +236,14 @@ module Wallet =
         let knownBy outpoint (metadata : Label list) (outputs : Outputs.OutputSet) =
             let outputsWithKnowledge =
                 outputs
-                |> Seq.join metadata Outputs.keyPath fst
+                |> Seq.join metadata Outputs.outputKeyPath fst
                 |> Seq.map (fun (output, (_, knownBy)) -> output, knownBy)
             let rec kb (outpoint : OutPoint) = seq {
-                let o, theOneWhoKnowThisOne =
+                let curOutput, theOneWhoKnowThisOne =
                     outputsWithKnowledge
                     |> Seq.find (fun (o,_) -> o.OutPoint = outpoint)
                 yield theOneWhoKnowThisOne
-                let thoseWhoKnowAncestors =
-                    o.CreatedBy.Inputs
-                    |> Seq.collect (fun i -> kb i.PrevOut)
-                yield! thoseWhoKnowAncestors
+                yield! curOutput |> Outputs.outputPrevOuts |> Seq.collect kb
                 }
             kb outpoint |> Set.ofSeq
 
@@ -335,7 +342,7 @@ module Wallet =
                 |> List.find (fun g -> g.Purpose = purpose && g.ScriptType = scriptType)
 
             let nextIndex = getNextScriptByKeyPath g.KeyPath wallet
-            let script = derive (g, nextIndex)
+            let script = derive g nextIndex
             let newWallet = {
                 wallet with
                   Metadata = (script.KeyPath, knownBy) :: wallet.Metadata
@@ -358,7 +365,7 @@ module Wallet =
 
             let withoutMetadata =
                 newOutputs
-                |> Seq.map (fun x -> x.ScriptPubKeyInfo.KeyPath)
+                |> Seq.map Outputs.outputKeyPath
                 |> Seq.except (wallet.Metadata |> List.map fst)
                 |> Seq.map (fun keypath -> keypath, "__discovered__")
                 |> Seq.toList
