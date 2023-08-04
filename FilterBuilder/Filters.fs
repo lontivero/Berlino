@@ -96,8 +96,7 @@ module Filters
                 |> AsyncResult.mapError exnAsString
                 |> AsyncResult.join
 
-            let! bci = getBlockchainInfo rpcClient
-            let tipBlock = bci.BestBlockHash
+            let! tipBlock = getBestBlockHashAsync rpcClient
 
             do! forever (tipBlock, stopAt) <| fun (fromBlock, toBlock) -> async {
                 do! loopWhile fromBlock (fun curBlock -> curBlock <> toBlock) <| fun curBlock -> async {
@@ -111,8 +110,7 @@ module Filters
                 }
                 let nothingToDo = fromBlock = toBlock
                 if nothingToDo then do! Async.Sleep (TimeSpan.FromSeconds 10)
-                let! bci = getBlockchainInfo rpcClient
-                let newTipBlock = bci.BestBlockHash
+                let! newTipBlock = getBestBlockHashAsync rpcClient
                 return (newTipBlock, fromBlock)
             }
         }
