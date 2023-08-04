@@ -7,11 +7,13 @@
 
     <ItemGroup>
         <Compile Include="RpcClient.fs" />
+        <Compile Include="Database.fs" />
         <Compile Include="Filters.fs" />
         <Compile Include="Program.fs" />
     </ItemGroup>
 
     <ItemGroup>
+      <PackageReference Include="Fumble" />
       <PackageReference Include="Thoth.Json.Net" />
     </ItemGroup>
 
