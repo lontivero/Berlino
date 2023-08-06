@@ -1,2 +1,0 @@
-./.git/hooks/remove-trailing-whitespaces-before-commit.sh
-./.git/hooks/dotnet-build-before-commit.sh
