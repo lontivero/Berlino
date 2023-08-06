@@ -18,7 +18,7 @@ module Berlino.RpcClient
         return blockId
         }
 
-    let getBestBlockHashAsync (rpcClient : RPCClient) = async {
+    let getBestBlockHash (rpcClient : RPCClient) = async {
         let ct = Async.DefaultCancellationToken
         return! rpcClient.GetBestBlockHashAsync ct |> Async.AwaitTask
         }

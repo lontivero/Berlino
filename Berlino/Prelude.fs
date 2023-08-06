@@ -74,6 +74,9 @@ module Result =
         | Error e ->
             raise e
 
+    let join (r : Result<Result<_,_>,_>) =
+        Result.bind id r
+
 [<AutoOpen; RequireQualifiedAccess>]
 module AsyncResult =
     let bind f (m : Async<Result<_,_>>) = async {
@@ -83,6 +86,14 @@ module AsyncResult =
 
     let join (r : Async<Result<Result<_,_>,_>>) =
         bind id r
+
+    let map mapper (r : Async<Result<_,_>>) = async {
+        let! result = r
+        return
+            match result with
+            | Ok x -> Ok (mapper x)
+            | Error e -> Error e
+    }
 
     let mapError mapper (r : Async<Result<_,_>>) = async {
         let! result = r
@@ -106,4 +117,3 @@ module Runner =
 
     let forever state doWork =
         loopWhile state (fun _ -> true) doWork
-

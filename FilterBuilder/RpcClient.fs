@@ -73,6 +73,6 @@ module FilterBuilder.RpcClient
         let! block =
             rpcClient.SendCommandAsync (RPCOperations.getblock, ct, blockId :> obj, VERBOSE :> obj)
             |> Async.AwaitTask
-        return block
+        return Decode.verboseBlockFromString block.ResultString
         }
 
