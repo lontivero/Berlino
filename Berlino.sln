@@ -13,11 +13,6 @@ Project("{F2A71F9B-5D33-465A-A702-920D77279786}") = "FilterBuilder.Tests", "Filt
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Others", "Others", "{13E7742E-7D50-4D33-9C2A-9E1545244C91}"
 	ProjectSection(SolutionItems) = preProject
-		Build\git-hooks\README.md = Build\git-hooks\README.md
-		Build\git-hooks\install-hooks.sh = Build\git-hooks\install-hooks.sh
-		Build\git-hooks\dotnet-build-before-commit.sh = Build\git-hooks\dotnet-build-before-commit.sh
-		Build\git-hooks\pre-commit = Build\git-hooks\pre-commit
-		Build\git-hooks\remove-trailing-whitespaces-before-commit.sh = Build\git-hooks\remove-trailing-whitespaces-before-commit.sh
 		Directory.Packages.props = Directory.Packages.props
 	EndProjectSection
 EndProject

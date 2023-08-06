@@ -10,6 +10,12 @@
     flake-utils.lib.eachDefaultSystem (system:
       let
         pkgs = nixpkgs.legacyPackages.${system};
+        code-coverage-report = pkgs.writeShellScriptBin "coverage.sh" ''
+          ${pkgs.dotnet-sdk_7}/bin/dotnet test --no-build --collect:"XPlat Code Coverage"
+          ${pkgs.dotnet-sdk_7}/bin/dotnet reportgenerator -reports:./**/TestResults/*/coverage.cobertura.xml -targetdir:coveragereport -reporttypes:Html
+          rm -rf **/TestResults
+          $BROWSER coveragereport/index.html
+        '';
         git-hooks = pkgs.writeShellScriptBin "pre-commit" ''
           set -e
           IFS="
@@ -59,12 +65,17 @@
               dotnet-sdk_7
               nuget-to-nix
               git-hooks
+              code-coverage-report
               ];
 
             DOTNET_ROOT = "${dotnet-sdk_7}";
 
             shellHook = ''
               ln -f -s ${git-hooks}/bin/pre-commit .git/hooks/pre-commit
+              if [ ! -f .config/dotnet-tools.json ]; then
+                ${pkgs.dotnet-sdk_7}/bin/dotnet new tool-manifest
+              fi
+              ${pkgs.dotnet-sdk_7}/bin/dotnet tool install dotnet-reportgenerator-globaltool
             '';
          };
         };
