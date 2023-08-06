@@ -31,7 +31,7 @@
             rm "$FILE.save"
           done
 
-          if [ "--$(git status -s | grep '^[A|D|M]')--" = "----" ]; then
+          if [ "--$(${pkgs.git}/bin/git status -s | grep '^[A|D|M]')--" = "----" ]; then
             # empty commit
             echo
             echo -e "\033[31mNO CHANGES ADDED, ABORT COMMIT!\033[0m"
@@ -64,6 +64,8 @@
             packages = [
               dotnet-sdk_7
               nuget-to-nix
+              sqlite-interactive
+              bitcoin
               git-hooks
               code-coverage-report
               ];
@@ -71,11 +73,13 @@
             DOTNET_ROOT = "${dotnet-sdk_7}";
 
             shellHook = ''
-              ln -f -s ${git-hooks}/bin/pre-commit .git/hooks/pre-commit
+              export GIT_TOP_LEVEL="$(${pkgs.git}/bin/git rev-parse --show-toplevel)"
+              ln -f -s ${git-hooks}/bin/pre-commit $GIT_TOP_LEVEL/.git/hooks/pre-commit
               if [ ! -f .config/dotnet-tools.json ]; then
                 ${pkgs.dotnet-sdk_7}/bin/dotnet new tool-manifest
               fi
-              ${pkgs.dotnet-sdk_7}/bin/dotnet tool install dotnet-reportgenerator-globaltool
+              ${pkgs.dotnet-sdk_7}/bin/dotnet tool install dotnet-reportgenerator-globaltool > /dev/null
+              export PS1='\n\[\033[1;34m\][Berlino:\w]\$\[\033[0m\] '
             '';
          };
         };
