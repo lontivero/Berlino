@@ -30,7 +30,7 @@ buildDotnetModule rec {
 
     meta = with lib; {
       homepage = "some_homepage";
-      description = "some_description";
+      description = "The simplest privacy oriented bitcoin wallet.";
       license = licenses.mit;
     };
 }
