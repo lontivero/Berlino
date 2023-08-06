@@ -57,28 +57,24 @@ module Filters
             | _ -> failwith $"Unknown network '{network.Name}'"
 
         let createFilterSaver () =
-            MailboxProcessor<FilterData>.Start(fun inbox ->
+            MailboxProcessor<VerboseBlockInfo>.Start(fun inbox ->
                 let connection = Database.connection "Data Source=filters.db"
                 Database.createTables connection |> Result.requiresOk
                 forever () <| fun () -> async {
-                    let! filterData = inbox.Receive()
-                    let! result = Database.save connection filterData
+                    let! verboseBlockInfo = inbox.Receive()
+                    let filter = build verboseBlockInfo
+                    let! result =
+                        Database.save connection {
+                             BlockHash = verboseBlockInfo.Hash
+                             PrevBlockHash = verboseBlockInfo.PrevBlockHash
+                             Height = verboseBlockInfo.Height
+                             Filter = filter }
                     match result with
                     | Ok _ -> ()
                     | Error e ->
                         logError e
                         failwith e.Message
                 })
-
-        let createFilterBuilder saveFilter =
-            MailboxProcessor<VerboseBlockInfo>.Start(fun inbox ->
-                forever () <| fun _ -> async {
-                    let! verboseBlockInfo = inbox.Receive()
-                    let filter = build verboseBlockInfo
-                    saveFilter { BlockHash = verboseBlockInfo.Hash
-                                 PrevBlockHash = verboseBlockInfo.PrevBlockHash
-                                 Height = verboseBlockInfo.Height
-                                 Filter = filter }})
 
         let startBuilding rpcClient stopAt buildFilter = async {
 

@@ -16,8 +16,7 @@ module Program =
     let cts = new CancellationTokenSource()
     let filterSaver = createFilterSaver ()
     let s = filterSaver.Error.Subscribe (fun _ -> cts.Cancel())
-    let filterBuilder = createFilterBuilder filterSaver.Post
 
-    let filterCreationProcess = startBuilding rpcClient initialData.PrevBlockHash filterBuilder.Post
+    let filterCreationProcess = startBuilding rpcClient initialData.PrevBlockHash filterSaver.Post
     Async.RunSynchronously (filterCreationProcess, cancellationToken=cts.Token)
     s.Dispose()
