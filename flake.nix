@@ -10,9 +10,15 @@
     flake-utils.lib.eachDefaultSystem (system:
       let
         pkgs = nixpkgs.legacyPackages.${system};
-        code-coverage-report = pkgs.writeShellScriptBin "coverage.sh" ''
+        report-generator = pkgs.buildDotnetGlobalTool {
+          pname = "reportgenerator";
+          nugetName = "dotnet-reportgenerator-globaltool";
+          version = "5.1.23";
+          nugetSha256 = "sha256-zN/sUYRyeJnHLUsQtH7OTbCeeZ83ZD1SI3nAD/cZut4=";
+        };
+        code-coverage-report = pkgs.writeShellScriptBin "coverage" ''
           ${pkgs.dotnet-sdk_7}/bin/dotnet test --no-build --collect:"XPlat Code Coverage"
-          ${pkgs.dotnet-sdk_7}/bin/dotnet reportgenerator -reports:./**/TestResults/*/coverage.cobertura.xml -targetdir:coveragereport -reporttypes:Html
+          ${report-generator}/bin/reportgenerator reportgenerator -reports:./**/TestResults/*/coverage.cobertura.xml -targetdir:coveragereport -reporttypes:Html
           rm -rf **/TestResults
           $BROWSER coveragereport/index.html
         '';
@@ -67,18 +73,17 @@
               sqlite-interactive
               bitcoin
               git-hooks
+              report-generator
               code-coverage-report
               ];
 
             DOTNET_ROOT = "${dotnet-sdk_7}";
 
             shellHook = ''
+              export DOTNET_CLI_TELEMETRY_OPTOUT=1
+              export DOTNET_NOLOGO=1
               export GIT_TOP_LEVEL="$(${pkgs.git}/bin/git rev-parse --show-toplevel)"
               ln -f -s ${git-hooks}/bin/pre-commit $GIT_TOP_LEVEL/.git/hooks/pre-commit
-              if [ ! -f .config/dotnet-tools.json ]; then
-                ${pkgs.dotnet-sdk_7}/bin/dotnet new tool-manifest
-              fi
-              ${pkgs.dotnet-sdk_7}/bin/dotnet tool install dotnet-reportgenerator-globaltool > /dev/null
               export PS1='\n\[\033[1;34m\][Berlino:\w]\$\[\033[0m\] '
             '';
          };
