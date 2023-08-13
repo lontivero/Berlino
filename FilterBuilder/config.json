@@ -1,0 +1,7 @@
+{
+  "Network": "TestNet",
+  "DatabaseConnectionString": "Data Source=~/TestNetFilters.db",
+  "RpcConnectionString": "user:password",
+  "FalsePositiveRate": "20",
+  "LogLevel": "Error"
+}

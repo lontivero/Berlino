@@ -67,7 +67,7 @@ module FilterBuilder.RpcClient
 
         let verboseBlockFromString blockStr = Decode.fromString block blockStr
 
-    let getVerboseBlock blockId (rpcClient : RPCClient) = async {
+    let getVerboseBlock (rpcClient : RPCClient) blockId = async {
         let VERBOSE = 3
         let ct = Async.DefaultCancellationToken
         let! block =

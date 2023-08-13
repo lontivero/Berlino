@@ -1,8 +1,8 @@
 ﻿namespace FilterBuilder
 
 
+open System
 open System.Threading
-open NBitcoin
 open Berlino
 open Filters
 open NBitcoin.RPC
@@ -11,20 +11,22 @@ module Program =
 
     [<EntryPoint>]
     let main args =
-        let network = Network.Main
-        let rpcClient = RPCClient(RPCCredentialString.Parse "****:****", network)
+        let config = Configuration.load "config.json" args
+        let network = Configuration.network config
+        let rpcClient = RPCClient(RPCCredentialString.Parse config.RpcConnectionString, network)
+        let db = Database.connection config.DatabaseConnectionString //"Data Source=filters.db"
         let initialData = taprootActivation network
         use cts = new CancellationTokenSource()
-        let filterSaver = createFilterSaver ()
+
+        Database.createTables db |> Result.requiresOk
+        let logError = fun (s : string) -> Console.WriteLine(s)
+
+        let filterBuilder = build (uint32 1 <<< config.FalsePositiveRate) config.FalsePositiveRate
+        let filterSaver = createFilterSaver filterBuilder (Database.save db) logError
         use _ = filterSaver.Error.Subscribe (fun _ -> cts.Cancel())
 
-        let buildingEnv = {
-            rpc = {
-                getVerboseBlock = fun blkHash -> RpcClient.getVerboseBlock blkHash rpcClient
-                getBestBlockHash = fun  () ->  RpcClient.getBestBlockHash rpcClient
-            }
-            buildFilter = filterSaver.Post
-        }
-        let filterCreationProcess = startBuilding buildingEnv initialData.PrevBlockHash
+        let blockFetcher = fetchBlock (RpcClient.getVerboseBlock rpcClient) (filterSaver.Post)
+        let bestBlockHashProvider = fun () -> RpcClient.getBestBlockHash rpcClient
+        let filterCreationProcess = startBuilding bestBlockHashProvider blockFetcher logError initialData.PrevBlockHash
         Async.RunSynchronously (filterCreationProcess, cancellationToken=cts.Token)
         0

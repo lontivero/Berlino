@@ -4,10 +4,11 @@ module Filters
     open Berlino
     open Berlino.Filters
     open FilterBuilder.RpcClient
+    open Fumble
     open Microsoft.FSharp.Core
     open NBitcoin
 
-    let build (block : VerboseBlockInfo) =
+    let build M P (block : VerboseBlockInfo) =
         let isSupportedKeyType t =
             t = "witness_v0_keyhash" || t = "witness_v1_taproot"
 
@@ -28,12 +29,9 @@ module Filters
         let scripts = relevantScripts ( spent |> Seq.append received )
         GolombRiceFilterBuilder()
             .SetKey(block.Hash)
-            .SetP(24)
-            .SetM(1u <<< 24)
+            .SetP(P)
+            .SetM(M)
             .AddEntries(scripts).Build()
-
-    let logError x = Console.WriteLine $"{x}"
-    let logInfo x = Console.WriteLine $"{x}"
 
     let taprootActivation (network : Network) =
         match network.Name with
@@ -54,15 +52,22 @@ module Filters
             |}
         | _ -> failwith $"Unknown network '{network.Name}'"
 
-    let createFilterSaver () =
+    type Logger = {
+        logError : string -> unit
+    }
+
+    type FilterSaver = FilterData -> Async<Result<int, exn>>
+    type FilterBuilder = VerboseBlockInfo -> GolombRiceFilter
+    type VerboseBlockProvider = uint256 -> Async<Result<VerboseBlockInfo,string>>
+    type BestBlockHashProvider = unit -> Async<uint256>
+
+    let createFilterSaver (build : FilterBuilder) (saveFilter : FilterSaver) logError =
         MailboxProcessor<VerboseBlockInfo>.Start(fun inbox ->
-            let connection = Database.connection "Data Source=filters.db"
-            Database.createTables connection |> Result.requiresOk
             forever () <| fun () -> async {
                 let! verboseBlockInfo = inbox.Receive()
                 let filter = build verboseBlockInfo
                 let! result =
-                    Database.save connection {
+                    saveFilter {
                          BlockHash = verboseBlockInfo.Hash
                          PrevBlockHash = verboseBlockInfo.PrevBlockHash
                          Height = verboseBlockInfo.Height
@@ -70,31 +75,22 @@ module Filters
                 match result with
                 | Ok _ -> ()
                 | Error e ->
-                    logError e
+                    logError (e.ToString())
                     failwith e.Message
             })
 
-    type NodeRpc = {
-        getVerboseBlock : uint256 -> Async<Result<VerboseBlockInfo,string>>
-        getBestBlockHash: unit -> Async<uint256>
-    }
-    type BuildEnv = {
-        rpc : NodeRpc
-        buildFilter : VerboseBlockInfo -> unit
-    }
+    let fetchBlock (getVerboseBlock : VerboseBlockProvider) buildFilter blockHash =
+        getVerboseBlock blockHash
+        |> AsyncResult.map (fun verboseBlockInfo ->
+            buildFilter verboseBlockInfo
+            verboseBlockInfo.PrevBlockHash)
+        |> Async.CatchResult
+        |> AsyncResult.mapError exnAsString
+        |> AsyncResult.join
 
-    let startBuilding env stopAt = async {
+    let startBuilding (getBestBlockHash : BestBlockHashProvider) fetchBlock logError stopAt = async {
 
-        let fetchBlock blockHash =
-            env.rpc.getVerboseBlock blockHash
-            |> AsyncResult.map (fun verboseBlockInfo ->
-                env.buildFilter verboseBlockInfo
-                verboseBlockInfo.PrevBlockHash)
-            |> Async.CatchResult
-            |> AsyncResult.mapError exnAsString
-            |> AsyncResult.join
-
-        let! tipBlock = env.rpc.getBestBlockHash ()
+        let! tipBlock = getBestBlockHash ()
 
         do! forever (tipBlock, stopAt) <| fun (fromBlock, toBlock) -> async {
             do! loopWhile fromBlock (fun curBlock -> curBlock <> toBlock) <| fun curBlock -> async {
@@ -108,7 +104,7 @@ module Filters
             }
             let nothingToDo = fromBlock = toBlock
             if nothingToDo then do! Async.Sleep (TimeSpan.FromSeconds 10)
-            let! newTipBlock = env.rpc.getBestBlockHash ()
+            let! newTipBlock = getBestBlockHash ()
             return (newTipBlock, fromBlock)
         }
     }

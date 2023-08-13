@@ -10,16 +10,26 @@
         <Compile Include="RpcClient.fs" />
         <Compile Include="Database.fs" />
         <Compile Include="Filters.fs" />
+        <Compile Include="Configuration.fs" />
         <Compile Include="Program.fs" />
     </ItemGroup>
 
     <ItemGroup>
       <PackageReference Include="Fumble" />
+      <PackageReference Include="Microsoft.Extensions.Configuration" />
+      <PackageReference Include="Microsoft.Extensions.Configuration.Binder" />
+      <PackageReference Include="Microsoft.Extensions.Configuration.CommandLine" />
+      <PackageReference Include="Microsoft.Extensions.Configuration.EnvironmentVariables" />
+      <PackageReference Include="Microsoft.Extensions.Configuration.Json" />
       <PackageReference Include="Thoth.Json.Net" />
     </ItemGroup>
 
     <ItemGroup>
       <ProjectReference Include="..\Berlino\Berlino.fsproj" />
+    </ItemGroup>
+
+    <ItemGroup>
+      <Content Include="config.json" />
     </ItemGroup>
 
 </Project>
