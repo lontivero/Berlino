@@ -1,16 +1,18 @@
 <Project>
-    <PropertyGroup>
-        <ManagePackageVersionsCentrally>true</ManagePackageVersionsCentrally>
-    </PropertyGroup>
-    <ItemGroup>
-        <PackageVersion Include="FSharpPlus" Version="1.4.1" />
-        <PackageVersion Include="NBitcoin" Version="7.0.27" />
-        <PackageVersion Include="Thoth.Json.Net" Version="11.0.0" />
-        <PackageVersion Include="Fumble" Version="1.0.1" />
+  <PropertyGroup>
+    <ManagePackageVersionsCentrally>true</ManagePackageVersionsCentrally>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageVersion Include="FSharpPlus" Version="1.4.1" />
+    <PackageVersion Include="NBitcoin" Version="7.0.27" />
+    <PackageVersion Include="Thoth.Json.Net" Version="11.0.0" />
+    <PackageVersion Include="Fumble" Version="1.0.1" />
 
-        <PackageVersion Include="Microsoft.NET.Test.Sdk" Version="17.5.0" />
-        <PackageVersion Include="xunit" Version="2.4.2" />
-        <PackageVersion Include="xunit.runner.visualstudio" Version="2.4.5" />
-        <PackageVersion Include="coverlet.collector" Version="3.2.0" />
-    </ItemGroup>
+
+    <!-- Unit testing -->
+    <PackageVersion Include="Microsoft.NET.Test.Sdk" Version="17.5.0" />
+    <PackageVersion Include="xunit" Version="2.4.2" />
+    <PackageVersion Include="xunit.runner.visualstudio" Version="2.4.5" />
+    <PackageVersion Include="coverlet.collector" Version="3.2.0" />
+  </ItemGroup>
 </Project>
