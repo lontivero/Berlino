@@ -29,7 +29,7 @@
     </ItemGroup>
 
     <ItemGroup>
-      <Content Include="config.json" />
+      <Content Include="config.json" CopyToOutputDirectory="Always" />
     </ItemGroup>
 
 </Project>

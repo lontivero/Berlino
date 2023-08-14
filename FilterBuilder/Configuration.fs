@@ -18,10 +18,10 @@ let network config =
 let load (configFile: string) (args : string[]) =
     let configurationRoot =
         ConfigurationBuilder()
+            .SetBasePath(Directory.GetCurrentDirectory())
+            .AddJsonFile(configFile, true, true)
             .AddEnvironmentVariables("BERLINO")
             .AddCommandLine(args)
-            .SetBasePath(Directory.GetCurrentDirectory())
-            .AddJsonFile(configFile)
             .Build()
 
     configurationRoot.Get<Configuration>()

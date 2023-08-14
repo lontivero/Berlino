@@ -14,7 +14,7 @@ module Program =
         let config = Configuration.load "config.json" args
         let network = Configuration.network config
         let rpcClient = RPCClient(RPCCredentialString.Parse config.RpcConnectionString, network)
-        let db = Database.connection config.DatabaseConnectionString //"Data Source=filters.db"
+        let db = Database.connection config.DatabaseConnectionString
         let initialData = taprootActivation network
         use cts = new CancellationTokenSource()
 
