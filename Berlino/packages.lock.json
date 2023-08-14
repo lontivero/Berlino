@@ -4,11 +4,11 @@
     "net7.0": {
       "FSharpPlus": {
         "type": "Direct",
-        "requested": "[1.4.1, )",
-        "resolved": "1.4.1",
-        "contentHash": "LIIWzVytD3cHx4CG95oTWdQx2dwjWeoseZrN6h/2rXeE5bZ7vtBBojAg0iMIMi1I27BHkFlQsNEg/4kDs1kZKA==",
+        "requested": "(, )",
+        "resolved": "0.0.1",
+        "contentHash": "pw0Wpt9gwm10DeDOehu+PCTuQUJBeJuFvMWOTayQGhj4RDsSUCv26lN6Moo4X5rvIptReNE1fB7MjoiK8lFSHg==",
         "dependencies": {
-          "FSharp.Core": "6.0.6"
+          "FsControl": "1.0.6"
         }
       },
       "NBitcoin": {
@@ -40,10 +40,15 @@
           "FSharp.Core": "4.7.1"
         }
       },
+      "FsControl": {
+        "type": "Transitive",
+        "resolved": "1.0.6",
+        "contentHash": "5zz+p75lnO4o8/1EbFKfTik/Jh0g88a9dniu7UgpFdUzcjpVVe1s/hlKlh3Hmc+XFJTE44stYRFX+gTa8BKb2w=="
+      },
       "FSharp.Core": {
         "type": "Transitive",
-        "resolved": "6.0.6",
-        "contentHash": "oSbTFqPtsp+EGkWAHwYIYYHyXLJRnbzVwcmM06kmXNLdWsp3P6XZViPSJJ2qUQS8feNK+nyPA0qtpNZXANGB7w=="
+        "resolved": "4.7.2",
+        "contentHash": "w3XFVTnyZUbC8e2QT6a85ern6y7eQPPk+MYemz1FP0iBfgZcembL+wmo5cIZ1kxB8jfoXC8Q9KVkOMsGpkBKbA=="
       },
       "Microsoft.Extensions.Logging.Abstractions": {
         "type": "Transitive",

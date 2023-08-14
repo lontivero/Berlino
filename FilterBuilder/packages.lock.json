@@ -112,10 +112,23 @@
           "FSharp.Core": "4.7.1"
         }
       },
+      "FsControl": {
+        "type": "Transitive",
+        "resolved": "1.0.6",
+        "contentHash": "5zz+p75lnO4o8/1EbFKfTik/Jh0g88a9dniu7UgpFdUzcjpVVe1s/hlKlh3Hmc+XFJTE44stYRFX+gTa8BKb2w=="
+      },
       "FSharp.Core": {
         "type": "Transitive",
         "resolved": "7.0.300",
         "contentHash": "8vvItREJ1l5lcp3vBCSJ1mFevVAhR48I34DuF/EoUa7o1KlFpQpagyuZkVYMAsHPIjdp47ZxM9sI4eqeXaeWkA=="
+      },
+      "FSharpPlus": {
+        "type": "Transitive",
+        "resolved": "0.0.1",
+        "contentHash": "pw0Wpt9gwm10DeDOehu+PCTuQUJBeJuFvMWOTayQGhj4RDsSUCv26lN6Moo4X5rvIptReNE1fB7MjoiK8lFSHg==",
+        "dependencies": {
+          "FsControl": "1.0.6"
+        }
       },
       "Microsoft.Bcl.AsyncInterfaces": {
         "type": "Transitive",
@@ -682,18 +695,9 @@
       "berlino": {
         "type": "Project",
         "dependencies": {
-          "FSharpPlus": "[1.4.1, )",
+          "FSharpPlus": "(, )",
           "NBitcoin": "[7.0.27, )",
           "Thoth.Json.Net": "[11.0.0, )"
-        }
-      },
-      "FSharpPlus": {
-        "type": "CentralTransitive",
-        "requested": "[1.4.1, )",
-        "resolved": "1.4.1",
-        "contentHash": "LIIWzVytD3cHx4CG95oTWdQx2dwjWeoseZrN6h/2rXeE5bZ7vtBBojAg0iMIMi1I27BHkFlQsNEg/4kDs1kZKA==",
-        "dependencies": {
-          "FSharp.Core": "6.0.6"
         }
       },
       "NBitcoin": {
