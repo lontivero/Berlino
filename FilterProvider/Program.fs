@@ -1,9 +1,11 @@
 ﻿namespace FilterProvider
 
+open System
 open System.Text
-open System.Text.Unicode
+open System.Threading
 open Berlino
 open Filters
+open Fumble
 open NBitcoin
 open FSharpPlus
 open Suave
@@ -11,15 +13,18 @@ open Suave.Sockets
 open Suave.Sockets.Control
 open Suave.WebSocket
 
+open Suave.Operators
+open Suave.Filters
+
 module Program =
 
-    let handle (webSocket : WebSocket) log (context: HttpContext) =
+    let webSocketHandler (db : Sql.SqlProps) (taprootActivation : TaprootActivation) (webSocket : WebSocket) (context: HttpContext) =
 
         let worker =
             MailboxProcessor<byte[]>.Start(fun inbox ->
                 let rec loop () = async {
                     let! msg = inbox.Receive()
-                    let! result = webSocket.send Binary (ByteSegment msg) true
+                    let! _ = webSocket.send Binary (ByteSegment msg) true
                     return! loop ()
                 }
                 loop () )
@@ -48,3 +53,35 @@ module Program =
         }
 
         messageLoop ()
+
+    let webapp (db : Sql.SqlProps) (taprootActivation : TaprootActivation) : WebPart =
+        choose [
+            path "/" >=> handShake (webSocketHandler db taprootActivation)
+        ]
+
+    open Suave.Logging
+
+    let loggingOptions =
+        { Literate.LiterateOptions.create() with
+            getLogLevelText = function Verbose->"V" | Debug->"D" | Info->"I" | Warn->"W" | Error->"E" | Fatal->"F" }
+
+    let logger =
+        LiterateConsoleTarget(
+            name = [|"Provider"|],
+            minLevel = Verbose,
+            options = loggingOptions,
+            outputTemplate = "[{level}] {timestampUtc:o} {message} [{source}]{exceptions}"
+        ) :> Logger
+
+    [<EntryPoint>]
+    let main args =
+        let config = Configuration.load "config.json" args
+        let network = Configuration.network config
+        let db = Database.connection config.DatabaseConnectionString
+        let taprootActivation = taprootActivation network
+
+        let app = webapp db taprootActivation
+        use cts = new CancellationTokenSource()
+        let conf = { defaultConfig with cancellationToken = cts.Token; logger = logger }
+        startWebServer conf app
+        0 // return an integer exit code
