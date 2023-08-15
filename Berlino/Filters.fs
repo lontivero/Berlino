@@ -5,9 +5,14 @@ open NBitcoin
 type FilterData = {
     BlockHash : uint256
     PrevBlockHash : uint256
-    Height : uint64
     Filter : GolombRiceFilter
 }
+
+let wireSerialize filter =
+    Array.concat [
+        filter.BlockHash.ToBytes()
+        filter.PrevBlockHash.ToBytes()
+        filter.Filter.ToBytes()]
 
 type TaprootActivation = {
     Hash : uint256

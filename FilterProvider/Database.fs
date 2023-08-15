@@ -21,4 +21,9 @@ module Database
                     WHERE block_hash = bh"
         |> Sql.parameters [
             "@block_hash", Sql.bytes (from.ToBytes())]
-        |> Sql.executeNonQueryAsync
+        |> Sql.executeAsync (fun reader ->
+            {
+              BlockHash = uint256 (reader.bytes "block_hash")
+              PrevBlockHash = uint256 (reader.bytes "prev_block_hash")
+              Filter = GolombRiceFilter (reader.bytes "filter")
+            })

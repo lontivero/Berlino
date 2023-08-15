@@ -51,7 +51,6 @@ module Filters
                     saveFilter {
                          BlockHash = verboseBlockInfo.Hash
                          PrevBlockHash = verboseBlockInfo.PrevBlockHash
-                         Height = verboseBlockInfo.Height
                          Filter = filter }
                 match result with
                 | Ok _ -> ()
