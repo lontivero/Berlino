@@ -51,23 +51,22 @@ let webSocketHandler (fetchFilters : FiltersFetcher) (knownHash : uint256) (webS
             loop () )
     let send = worker.Post
 
-    async {
-        do! knownHash
-            |> fetchFilters
-            |> AsyncSeq.map (List.map wireSerialize)
-            |> AsyncSeq.iter send
+    knownHash
+    |> fetchFilters
+    |> AsyncSeq.map (List.map wireSerialize)
+    |> AsyncSeq.iter send
+    |> Async.Start
 
-        let emptyResponse = ByteSegment [||]
-        let rec messageLoop () = socket {
-            let! msg = webSocket.read()
-            match msg with
-            | Ping, _, _  -> do! webSocket.send Pong  emptyResponse true
-            | Close, _, _ -> do! webSocket.send Close emptyResponse true
-            | _ ->           return! messageLoop()
-        }
-
-        return messageLoop ()
+    let emptyResponse = ByteSegment [||]
+    let rec messageLoop () = socket {
+        let! msg = webSocket.read()
+        match msg with
+        | Ping, _, _  -> do! webSocket.send Pong  emptyResponse true
+        | Close, _, _ -> do! webSocket.send Close emptyResponse true
+        | _ ->           return! messageLoop()
     }
+
+    messageLoop ()
 
 
 open Suave.Logging
