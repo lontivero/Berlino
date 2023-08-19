@@ -12,17 +12,13 @@ module Database
         connection
         |> Sql.command
             """
-            PRAGMA foreign_keys = ON;
-
             CREATE TABLE IF NOT EXISTS filters (
-                id INTEGER PRIMARY KEY,
                 block_hash BLOB NOT NULL,
                 prev_block_hash BLOB NOT NULL,
                 filter BLOB NOT NULL
                 );
 
             CREATE UNIQUE INDEX IF NOT EXISTS block_hash_index ON filters(block_hash);
-            CREATE INDEX IF NOT EXISTS prev_block_hash_index ON filters(prev_block_hash);
             """
         |> Sql.executeCommand
         |> Result.map (fun _ -> ())
