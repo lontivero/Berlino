@@ -28,10 +28,9 @@ module Program =
         let logError = fun (s : string) -> Console.WriteLine(s)
 
         let filterBuilder = build (uint32 1 <<< config.FalsePositiveRate) config.FalsePositiveRate
-        let filterSaver = createFilterSaver filterBuilder (Database.save db) logError
-        use _ = filterSaver.Error.Subscribe (fun _ -> cts.Cancel())
+        let _, filterSaver = createFilterSaver filterBuilder (Database.save db) logError
 
-        let blockFetcher = fetchBlock (RpcClient.getVerboseBlock rpcClient) (filterSaver.Post)
+        let blockFetcher = fetchBlock (RpcClient.getVerboseBlock rpcClient) filterSaver
         let bestBlockHashProvider = fun () -> RpcClient.getBestBlockHash rpcClient
         let filterCreationProcess = startBuilding bestBlockHashProvider blockFetcher logError tipFilter
         Async.RunSynchronously (filterCreationProcess, cancellationToken=cts.Token)

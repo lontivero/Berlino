@@ -43,21 +43,23 @@ module Filters
     type BestBlockHashProvider = unit -> Async<uint256>
 
     let createFilterSaver (build : FilterBuilder) (saveFilter : FilterSaver) logError =
-        MailboxProcessor<VerboseBlockInfo>.Start(fun inbox ->
+        let saveEvent = Event<FilterData>()
+        let worker = MailboxProcessor<VerboseBlockInfo>.Start(fun inbox ->
             forever () <| fun () -> async {
                 let! verboseBlockInfo = inbox.Receive()
                 let filter = build verboseBlockInfo
-                let! result =
-                    saveFilter {
-                         BlockHash = verboseBlockInfo.Hash
-                         PrevBlockHash = verboseBlockInfo.PrevBlockHash
-                         Filter = filter }
+                let filterData = {
+                     BlockHash = verboseBlockInfo.Hash
+                     PrevBlockHash = verboseBlockInfo.PrevBlockHash
+                     Filter = filter }
+                let! result = saveFilter filterData
+                saveEvent.Trigger filterData
                 match result with
                 | Ok _ -> ()
                 | Error e ->
                     logError (e.ToString())
-                    failwith e.Message
             })
+        saveEvent.Publish, worker.Post
 
     let fetchBlock (getVerboseBlock : VerboseBlockProvider) buildFilter blockHash =
         getVerboseBlock blockHash
