@@ -1,9 +1,14 @@
 namespace FilterBuilder.Tests
 
+open System
+open System.IO
+open System.Threading
+open Berlino
 open FilterBuilder.RpcClient
 open NBitcoin
 open Thoth.Json.Net
 open Xunit
+open Fumble
 
 module FilterTest =
 
@@ -188,3 +193,41 @@ module FilterTest =
         match blockInfoResult with
         | Ok blockInfo -> Assert.Equal (expected, blockInfo)
         | Error e -> failwith e
+
+    [<Fact>]
+    let ``Can generate filters`` () =
+        let logError = fun (_ : string) -> ()
+        let filterBuilder = Filters.build (uint32 1 <<< 20) 20
+        let blockHash = uint256 "0000002f9499df68ea3eb1dbf11c0ba60b81608f3dc38ccc646c276165ab039b"
+        let prevBlockHash = uint256 "0000014f3cfbada1942e4479db880ac6bd9d7de36a1669ec4aa685e52a195a87"
+        let getVerboseBlock (_ : uint256) = async {
+            return Decode.verboseBlockFromString (File.ReadAllText "./Data/VerboseBlockInfo.json")
+        }
+        let getBestBlockHash () = async { return blockHash }
+        let activationBlockHash = prevBlockHash
+        use cts = new CancellationTokenSource()
+
+        let db = Database.connection "Data Source=:memory:"
+        Database.createTables db |> Result.requiresOk
+        let persistFilter = Database.save db
+        let onFilterSaved, filterSaver = Filters.createFilterSaver filterBuilder persistFilter logError
+        let blockFetcher = Filters.fetchBlock getVerboseBlock filterSaver
+        let filterCreationProcess = Filters.startBuilding getBestBlockHash blockFetcher logError activationBlockHash
+        let cancel ev =
+            let filtersResult =
+                db
+                |> Sql.query "SELECT * FROM filters"
+                |> Sql.execute (fun reader -> {|
+                       BlockHash = uint256 (reader.bytes "block_hash")
+                       PrevBlockHash = uint256 (reader.bytes "prev_block_hash")
+                       Filter = GolombRiceFilter (reader.bytes "filter")
+                       |})
+            let filters = filtersResult |> Result.requiresOk
+
+            let filter = Assert.Single filters
+            Assert.Equal (filter.BlockHash, blockHash)
+            Assert.Equal (filter.PrevBlockHash, prevBlockHash)
+
+        onFilterSaved.Subscribe cancel |> ignore
+        Async.Start (filterCreationProcess, cancellationToken = cts.Token)
+        Async.Sleep (TimeSpan.FromSeconds 1)
