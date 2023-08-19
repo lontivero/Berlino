@@ -6,6 +6,7 @@ open System.Text
 open Berlino.Filters
 open FSharp.Control
 open FSharpPlus.Data
+open Microsoft.FSharp.Control
 open NBitcoin
 open FSharpPlus
 open Suave
@@ -21,56 +22,53 @@ let fetchFilters (filterChunkGetter : FiltersChunkFetcher) blockId =
         let! filtersResult = filterChunkGetter blockId
         match filtersResult with
         | Ok [] ->
-            do! Async.Sleep (TimeSpan.FromSeconds 5)
-            yield! loop blockId
+            ()
         | Ok filters ->
             yield filters
             let lastFilter = List.last filters
-            yield! loop (lastFilter.BlockHash)
+            yield! loop lastFilter.BlockHash
         | Error e ->
             Console.WriteLine ""
     }
     loop blockId
 
 
-let webSocketHandler (fetchFilters : FiltersFetcher) (taprootActivation : TaprootActivation) (webSocket : WebSocket) (context: HttpContext) =
+let webSocketHandler (fetchFilters : FiltersFetcher) (knownHash : uint256) (webSocket : WebSocket) (context: HttpContext) =
 
     let worker =
-        MailboxProcessor<byte[]>.Start(fun inbox ->
+        MailboxProcessor<byte[] list>.Start(fun inbox ->
             let rec loop () = async {
-                let! msg = inbox.Receive()
-                let! _ = webSocket.send Binary (ByteSegment msg) true
+                let! filters = inbox.Receive()
+                do!
+                    filters
+                    |> List.map (fun filter ->
+                        webSocket.send Binary (ByteSegment filter) true )
+                    |> Async.Sequential
+                    |> Async.Ignore
+
                 return! loop ()
             }
             loop () )
     let send = worker.Post
 
-    let rec messageLoop () = socket {
-        let! msg = webSocket.read()
-        match msg with
-        | Binary, data, true ->
-            let parseBlockHash = Result.protect (fun (x : byte[]) -> uint256 x)
-            let blockHashResult = parseBlockHash data
-            match blockHashResult with
-            | Error _ ->
-                send (Encoding.UTF8.GetBytes "Invalid request")
-            | Ok blockId ->
-                blockId
-                |> fetchFilters
-                |> AsyncSeq.map (List.map wireSerialize)
-                |> AsyncSeq.collect (AsyncSeq.ofSeq)
-                |> AsyncSeq.iter send
-                |> Async.Start
+    async {
+        do! knownHash
+            |> fetchFilters
+            |> AsyncSeq.map (List.map wireSerialize)
+            |> AsyncSeq.iter send
 
-            return! messageLoop()
-        | Close, _, _ ->
-            let emptyResponse = [||] |> ByteSegment
-            do! webSocket.send Close emptyResponse true
-        | _ ->
-            return! messageLoop()
+        let emptyResponse = ByteSegment [||]
+        let rec messageLoop () = socket {
+            let! msg = webSocket.read()
+            match msg with
+            | Ping, _, _  -> do! webSocket.send Pong  emptyResponse true
+            | Close, _, _ -> do! webSocket.send Close emptyResponse true
+            | _ ->           return! messageLoop()
+        }
+
+        return messageLoop ()
     }
 
-    messageLoop ()
 
 open Suave.Logging
 
