@@ -15,10 +15,16 @@ module Program =
         let network = Configuration.network config
         let rpcClient = RPCClient(RPCCredentialString.Parse config.RpcConnectionString, network)
         let db = Database.connection config.DatabaseConnectionString
-        let initialData = taprootActivation network
+        let taprootActivation = taprootActivation network
         use cts = new CancellationTokenSource()
 
         Database.createTables db |> Result.requiresOk
+        let tipFilter =
+            Database.getTipFilter db
+            |> Result.requiresOk
+            |> List.tryExactlyOne
+            |> Option.defaultValue taprootActivation.PrevBlockHash
+
         let logError = fun (s : string) -> Console.WriteLine(s)
 
         let filterBuilder = build (uint32 1 <<< config.FalsePositiveRate) config.FalsePositiveRate
@@ -27,6 +33,6 @@ module Program =
 
         let blockFetcher = fetchBlock (RpcClient.getVerboseBlock rpcClient) (filterSaver.Post)
         let bestBlockHashProvider = fun () -> RpcClient.getBestBlockHash rpcClient
-        let filterCreationProcess = startBuilding bestBlockHashProvider blockFetcher logError initialData.PrevBlockHash
+        let filterCreationProcess = startBuilding bestBlockHashProvider blockFetcher logError tipFilter
         Async.RunSynchronously (filterCreationProcess, cancellationToken=cts.Token)
         0

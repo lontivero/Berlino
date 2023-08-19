@@ -69,22 +69,34 @@ module Filters
         |> AsyncResult.join
 
     let startBuilding (getBestBlockHash : BestBlockHashProvider) fetchBlock logError stopAt = async {
-
         let! tipBlock = getBestBlockHash ()
 
-        do! forever (tipBlock, stopAt) <| fun (fromBlock, toBlock) -> async {
-            do! loopWhile fromBlock (fun curBlock -> curBlock <> toBlock) <| fun curBlock -> async {
-                match! fetchBlock curBlock with
-                | Ok prevBlockHash ->
-                    return prevBlockHash
-                | Error error ->
-                    logError error
-                    do! Async.Sleep (TimeSpan.FromSeconds 2)
-                    return curBlock
+        let rec loop0 fromBlock toBlock = async {
+            let rec loop1 curBlock = async {
+                if curBlock <> toBlock then
+                    match! fetchBlock curBlock with
+                    | Ok prevBlockHash ->
+                        do! loop1 prevBlockHash
+                    | Error error ->
+                        logError error
+                        do! Async.Sleep (TimeSpan.FromSeconds 2)
+                        do! loop1 curBlock
             }
+            do! loop1 fromBlock
+
             let nothingToDo = fromBlock = toBlock
             if nothingToDo then do! Async.Sleep (TimeSpan.FromSeconds 10)
-            let! newTipBlock = getBestBlockHash ()
-            return (newTipBlock, fromBlock)
+            let! newTipBlockResult = getBestBlockHash () |> Async.CatchResult
+            let newTipBlock =
+                match newTipBlockResult with
+                | Ok newTipBlock -> newTipBlock
+                | Error error ->
+                    logError (exnAsString error)
+                    tipBlock
+            do! loop0 newTipBlock fromBlock
         }
+        try
+            do! loop0 tipBlock stopAt
+        finally
+            printfn "finisehd"
     }

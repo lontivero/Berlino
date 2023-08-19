@@ -3,6 +3,7 @@ module Database
     open Berlino.Filters
     open Fumble
     open Microsoft.Data.Sqlite
+    open NBitcoin
 
     let connection connectionString =
         Sql.existingConnection (new SqliteConnection(connectionString))
@@ -33,3 +34,9 @@ module Database
             "@prev_block_hash", Sql.bytes (filter.PrevBlockHash.ToBytes())
             "@filter", Sql.bytes (filter.Filter.ToBytes()) ]
         |> Sql.executeNonQueryAsync
+
+    let getTipFilter connection =
+        connection
+        |> Sql.query
+            "SELECT block_hash FROM filters WHERE block_hash NOT IN (SELECT prev_block_hash FROM filters)"
+        |> Sql.execute (fun reader -> uint256 (reader.bytes "block_hash") )
