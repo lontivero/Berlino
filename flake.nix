@@ -72,6 +72,8 @@
               nuget-to-nix
               sqlite-interactive
               bitcoin
+              tor
+              websocat
               git-hooks
               report-generator
               code-coverage-report
