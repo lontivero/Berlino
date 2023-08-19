@@ -29,4 +29,8 @@
       <ProjectReference Include="..\FilterBuilder\FilterBuilder.fsproj" />
     </ItemGroup>
 
+    <ItemGroup>
+      <Content Include="Data\VerboseBlockInfo.json" CopyToOutputDirectory="Always" />
+    </ItemGroup>
+
 </Project>
