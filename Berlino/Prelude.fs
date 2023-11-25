@@ -2,6 +2,7 @@ namespace Berlino
 
 open System
 open System.Linq
+open System.Collections.Generic
 open NBitcoin
 
 [<AutoOpen>]
@@ -9,10 +10,15 @@ module Exception =
 
     let exnAsString (e : exn) = e.ToString()
 
-[<AutoOpen; RequireQualifiedAccess>]
+[<RequireQualifiedAccess>]
 module Seq =
-    let exceptBy excluded predicate ls =
-        ls |> Seq.filter (fun x -> excluded |> Seq.exists (predicate x) |> not )
+    let exceptBy (excluded : seq<_>) predicate ls =
+        let hashset = excluded |> HashSet
+        ls |> Seq.filter (fun x -> hashset.Contains (predicate x) |> not )
+
+    let alsoInBy mapper (ls1 : seq<_>) ls2 =
+        let hashset = ls1 |> HashSet
+        ls2 |> Seq.filter (fun x -> hashset.Contains (mapper x))
 
     let join (innerSequence : 'b seq) outerKeySelector innerKeySelector (outerSequence : 'a seq) =
         outerSequence.Join(innerSequence,
@@ -121,3 +127,5 @@ module Runner =
 [<AutoOpen>]
 module Types =
     type TransactionId = uint256
+    type ScriptPubKey = Script
+    type TransactionSet = Transaction list

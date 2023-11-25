@@ -1,8 +1,7 @@
 namespace Berlino.Tests
 
 open Berlino
-open Berlino.Wallet
-open Berlino.Wallet.ScriptPubKeyDescriptor
+open Berlino.ScriptPubKeyDescriptor
 open Prelude
 open NBitcoin
 open Xunit
@@ -10,8 +9,8 @@ open Xunit
 module Wallet =
 
     let createDestinations () = state {
-        let! destination = getNextScriptPubKeyForReceiving ScriptType.P2WPKH "Lucas"
-        let! change = getNextScriptPubKeyForChange ScriptType.P2WPKH "Pablo"
+        let! destination = Wallet.getNextScriptPubKeyForReceiving ScriptType.P2WPKH "Lucas"
+        let! change = Wallet.getNextScriptPubKeyForChange ScriptType.P2WPKH "Pablo"
         return (destination, change)
     }
 
@@ -19,21 +18,22 @@ module Wallet =
         let tx0 = createFundingTransaction destination.ScriptPubKey
         let tx1 = createSpendingTransaction tx0 (Money.Coins 0.3m) change.ScriptPubKey
 
-        return! processTransactions [tx0; tx1]
+        return! Wallet.processTransactions [tx0; tx1]
     }
 
     [<Fact>]
     let ``Can discover outputs and update metadata`` () =
 
-        let newWallet = createNewWallet Network.Main
+        let newWallet = Wallet.createNew Network.Main
 
         let (destination, change), usedWallet = createDestinations () |> State.run newWallet
         let transactionChain = generateTransactionChain destination change
 
-        let existingWalletState, existingWallet  = transactionChain |> State.run usedWallet
-        let recoveredWalletState, recoveredWallet = transactionChain |> State.run newWallet
-        Assert.Equal(Money.Coins 0.3m, Outputs.balance existingWalletState)
-        Assert.Equal<Outputs.Output seq>(recoveredWalletState.Outputs, existingWalletState.Outputs)
+        let existingWalletTxs, existingWallet  = transactionChain |> State.run usedWallet
+        let recoveredWalletTxs, recoveredWallet = transactionChain |> State.run newWallet
+        Assert.Equal(Money.Coins 0.3m, Outputs.balance (existingWallet |> Wallet.getAllScriptPubKeys) existingWalletTxs)
+        Assert.Equal(Money.Coins 0.3m, Outputs.balance (recoveredWallet |> Wallet.getAllScriptPubKeys) recoveredWalletTxs)
+        Assert.Equal<TransactionSet>(recoveredWalletTxs, existingWalletTxs)
         Assert.Equal<Set<string * string>>(
             existingWallet.Metadata |> List.map (fun (k,v) -> k.ToString(), v) |> Set.ofList, Set [
                 "84'/0'/0'/1/0", "Pablo"
@@ -49,17 +49,19 @@ module Wallet =
     let ``Can compute entities who know about outputs`` () =
         state {
             let! destination, change = createDestinations ()
-            let! walletState = generateTransactionChain destination change
+            let! relevantTransactions = generateTransactionChain destination change
 
             let! wallet = State.get
-            let firstOutput = walletState.Outputs |> Seq.find (fun x -> x.ScriptPubKeyInfo = change) |> fun x -> x.OutPoint;
-            let knownBy = walletState |> Knowledge.knownBy firstOutput wallet.Metadata
+            let scriptPubKeys = wallet |> Wallet.getAllScriptPubKeys
+            let outputs = Outputs.allOutputs scriptPubKeys relevantTransactions
+            let firstOutput = outputs |> Seq.find (fun x -> x.ScriptPubKeyInfo = change) |> fun x -> x.OutPoint;
+            let knownBy = Knowledge.knownBy firstOutput wallet.Metadata scriptPubKeys relevantTransactions
             Assert.Equal(["Lucas"; "Pablo"], knownBy)
 
-            let secondOutput = walletState.Outputs |> Seq.find (fun x -> x.ScriptPubKeyInfo = destination) |> fun x -> x.OutPoint;
-            let knownBy = walletState |> Knowledge.knownBy secondOutput wallet.Metadata
+            let secondOutput = outputs |> Seq.find (fun x -> x.ScriptPubKeyInfo = destination) |> fun x -> x.OutPoint;
+            let knownBy = Knowledge.knownBy secondOutput wallet.Metadata scriptPubKeys relevantTransactions
             Assert.Equal(["Lucas"], knownBy)
-        } |> State.run (createNewWallet Network.Main)
+        } |> State.run (Wallet.createNew Network.Main)
 
     open Thoth.Json.Net
 
@@ -69,8 +71,8 @@ module Wallet =
             let! _ = createDestinations () // just to generate the metadata
 
             let! wallet = State.get
-            let serializedWallet = Encode.toString 0 (Encode.wallet wallet)
-            let deserializedWalletResult = Decode.fromString Decode.wallet serializedWallet
+            let serializedWallet = Encode.toString 0 (Wallet.Encode.wallet wallet)
+            let deserializedWalletResult = Decode.fromString Wallet.Decode.wallet serializedWallet
             Assert.Equal (Ok wallet, deserializedWalletResult)
-        } |> State.run (createNewWallet Network.Main)
+        } |> State.run (Wallet.createNew Network.Main)
 
