@@ -3,7 +3,7 @@
   git,
   gnused,
   gnugrep,
-  dotnet-sdk_7,
+  dotnet-sdk_8,
 }:
 writeShellScriptBin "pre-commit" ''
   set -e
@@ -33,7 +33,7 @@ writeShellScriptBin "pre-commit" ''
   ${git}/bin/git clone .git $TEMP_DIRECTORY
   ${git}/bin/git diff -P --cached | patch -p1 -d $TEMP_DIRECTORY
   pushd $TEMP_DIRECTORY
-  ${dotnet-sdk_7}/bin/dotnet test
+  ${dotnet-sdk_8}/bin/dotnet test
   popd
   rm -rf $TEMP_DIRECTORY
 ''

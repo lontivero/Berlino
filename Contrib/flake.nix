@@ -20,8 +20,8 @@
         default = self.packages.${system}.berlino-wallet;
 
         berlino-wallet = pkgs.callPackage ./default.nix {
-          dotnet-sdk = pkgs.dotnet-sdk_7;
-          dotnet-runtime = pkgs.dotnet-runtime_7;
+          dotnet-sdk = pkgs.dotnet-sdk_8;
+          dotnet-runtime = pkgs.dotnet-runtime_8;
         };
       };
 
@@ -29,7 +29,7 @@
         default = mkShell {
           name = "berlino-shell";
           packages = [
-            dotnet-sdk_7
+            dotnet-sdk_8
             nuget-to-nix
             sqlite-interactive
             bitcoin
@@ -39,7 +39,7 @@
             code-coverage-report
           ];
 
-          DOTNET_ROOT = "${dotnet-sdk_7}";
+          DOTNET_ROOT = "${dotnet-sdk_8}";
 
           shellHook = ''
             export DOTNET_CLI_TELEMETRY_OPTOUT=1

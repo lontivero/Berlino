@@ -1,7 +1,7 @@
 {
   writeShellScriptBin,
   buildDotnetGlobalTool,
-  dotnet-sdk_7,
+  dotnet-sdk_8,
 }
 : let
   report-generator = buildDotnetGlobalTool {
@@ -12,7 +12,7 @@
   };
 in
   writeShellScriptBin "coverage" ''
-    ${dotnet-sdk_7}/bin/dotnet test --no-build --collect:"XPlat Code Coverage"
+    ${dotnet-sdk_8}/bin/dotnet test --no-build --collect:"XPlat Code Coverage"
     ${report-generator}/bin/reportgenerator reportgenerator -reports:./**/TestResults/*/coverage.cobertura.xml -targetdir:coveragereport -reporttypes:Html
     rm -rf **/TestResults
     $BROWSER coveragereport/index.html
