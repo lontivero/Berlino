@@ -18,9 +18,9 @@ buildDotnetModule rec {
 
     pname = "berlino-wallet";
     version = "0.0.1";
-    nugetDeps = ./deps.nix;
+    nugetDeps = ./deps.nix; # nix build .#packages.x86_64-linux.default.passthru.fetch-deps
 
-    src = ./.;
+    src = ./..;
 
     projectFile = "Berlino.sln";
     testProjectFile = "Berlino.Tests/Berlino.Tests.fsproj";
