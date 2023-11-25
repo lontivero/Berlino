@@ -1,6 +1,7 @@
 ﻿namespace Berlino
 
 open System
+open System.Collections.Generic
 open NBitcoin
 open FSharpPlus
 open Thoth.Json.Net
@@ -161,13 +162,39 @@ module Wallet =
     module Outputs =
         open ScriptPubKeyDescriptor
 
+
+        [<CustomEquality; CustomComparison>]
+        type ConfirmedTransaction =
+            {
+            Transaction : Transaction
+            Height : int
+            }
+            override this.GetHashCode () = HashCode.Combine(this.Transaction, this.Height)
+            override this.Equals obj =
+                match obj with
+                | :? ConfirmedTransaction as other -> compare this other = 0
+                | _ -> false
+            interface IEquatable<ConfirmedTransaction> with
+                member this.Equals other = (other.Height = this.Height && other.Transaction.GetHash() = this.Transaction.GetHash())
+            interface IComparable<ConfirmedTransaction> with
+                member this.CompareTo other =
+                    if this.Height > other.Height then 1
+                    elif this.Height < other.Height then -1
+                    else this.Transaction.GetHash().CompareTo (other.Transaction.GetHash())
+            interface IComparable with
+                member this.CompareTo obj =
+                    match obj with
+                    | null -> 1
+                    | :? ConfirmedTransaction as other -> (this :> IComparable<_>).CompareTo other
+                    | _                  -> invalidArg "obj" "not an ConfirmedTransaction"
+
         [<CustomEquality; CustomComparison>]
         type Output =
             {
                 OutPoint : OutPoint
                 Amount : Money
                 ScriptPubKeyInfo : ScriptPubKeyInfo
-                CreatedBy : Transaction
+                CreatedBy : TransactionId
             }
             override this.GetHashCode () = this.OutPoint.GetHashCode()
             override this.Equals obj =
@@ -188,33 +215,38 @@ module Wallet =
                     | :? Output as other -> (this :> IComparable<_>).CompareTo other
                     | _                  -> invalidArg "obj" "not an Output"
 
-        let outputAmount output = output.Amount
-        let outputInputs output = output.CreatedBy.Inputs :> seq<TxIn>
         let inputPrevOut (input : TxIn) = input.PrevOut
-        let outputPrevOuts output = output |> outputInputs |>> inputPrevOut
         let outputKeyPath output = output.ScriptPubKeyInfo.KeyPath
-        let outputScriptPubKey output = output.ScriptPubKeyInfo.ScriptPubKey
+        let prevOuts (tx : Transaction) = tx.Inputs |> Seq.map inputPrevOut
 
-        type OutputSet = Set<Output>
+        type DiscoveredWalletState = {
+            Outputs : Set<Output>
+            Transactions : Map<TransactionId, Transaction>
+        }
+
+        let empty = {
+            Outputs = Set.empty
+            Transactions = Map.empty
+        }
 
         let spent =
-            let memoizableFun (outputs : OutputSet) =
+            let memoizableFun (walletState : DiscoveredWalletState) =
                 let allInputsSpent =
-                    outputs
-                    |> Seq.collect outputPrevOuts
-                    |> Seq.cache
+                    walletState.Transactions.Values
+                    |> Seq.collect prevOuts
+                    |> HashSet
 
-                outputs
+                walletState.Outputs
                 |> Set.filter (fun o -> allInputsSpent |> Seq.contains o.OutPoint)
             memoizeN memoizableFun
 
-        let unspent (outputs : OutputSet) =
-            outputs - (spent outputs)
+        let unspent (walletState : DiscoveredWalletState) =
+            walletState.Outputs - (spent walletState)
 
-        let balance outputs =
-            outputs
+        let balance walletState =
+            walletState
             |> unspent
-            |> Seq.sumBy outputAmount
+            |> Seq.sumBy _.Amount
 
         let discoverOutputs (scriptPubKeyInfoSet : ScriptPubKeyInfoSet) (tx : Transaction) =
             tx.Outputs
@@ -224,7 +256,7 @@ module Wallet =
                 OutPoint = OutPoint(tx, uint i)
                 Amount = output.Value
                 ScriptPubKeyInfo = spkInfo
-                CreatedBy = tx
+                CreatedBy = tx.GetHash()
                 })
             |> Set.ofSeq
 
@@ -233,9 +265,9 @@ module Wallet =
 
         type Label = KeyPath * string
 
-        let knownBy outpoint (metadata : Label list) (outputs : Outputs.OutputSet) =
+        let knownBy outpoint (metadata : Label list) (outputs : Outputs.DiscoveredWalletState) =
             let outputsWithKnowledge =
-                outputs
+                outputs.Outputs
                 |> Seq.join metadata Outputs.outputKeyPath fst
                 |> Seq.map (fun (output, (_, knownBy)) -> output, knownBy)
             let rec kb (outpoint : OutPoint) = seq {
@@ -243,7 +275,7 @@ module Wallet =
                     outputsWithKnowledge
                     |> Seq.find (fun (o,_) -> o.OutPoint = outpoint)
                 yield theOneWhoKnowThisOne
-                yield! curOutput |> Outputs.outputPrevOuts |> Seq.collect kb
+                yield! Outputs.prevOuts (outputs.Transactions[outpoint.Hash]) |> Seq.collect kb
                 }
             kb outpoint |> Set.ofSeq
 
@@ -358,7 +390,7 @@ module Wallet =
     let getNextScriptPubKeyForCoinjoin scriptType : WalletTransformer<ScriptPubKeyInfo> =
         getNextScriptPubKey scriptType ScriptPurpose.CoinJoin ""
 
-    let processTransaction tx : WalletTransformer<Outputs.OutputSet> =
+    let processTransaction tx : WalletTransformer<Outputs.DiscoveredWalletState> =
         fun wallet ->
             let scriptPubKeys = getAllScriptPubKeys wallet
             let newOutputs = Outputs.discoverOutputs scriptPubKeys tx
@@ -370,16 +402,18 @@ module Wallet =
                 |> Seq.map (fun keypath -> keypath, "__discovered__")
                 |> Seq.toList
 
+            let newOutputSet : Outputs.DiscoveredWalletState = { Outputs = newOutputs; Transactions = Map.ofList [(tx.GetHash(), tx)] }
             let newWallet = { wallet with Metadata = withoutMetadata @ wallet.Metadata }
-            newOutputs, newWallet
+            newOutputSet, newWallet
 
-    let processTransactions (txs : Transaction list) : WalletTransformer<Outputs.OutputSet> =
+    let processTransactions (txs : Transaction list) : WalletTransformer<Outputs.DiscoveredWalletState> =
         fun wallet ->
-            ((Set.empty<Outputs.Output>, wallet), txs)
-            ||> List.fold (fun (outputs, wallet) tx ->
+            ((Outputs.empty, wallet), txs)
+            ||> List.fold (fun (outputSet, wallet) tx ->
                 let discovery = state {
                     let! discoveredOutputs = processTransaction tx
-                    return outputs |> Set.union discoveredOutputs
+                    return { outputSet with
+                                Outputs = outputSet.Outputs |> Set.union discoveredOutputs.Outputs
+                                Transactions = outputSet.Transactions |> Map.union discoveredOutputs.Transactions }
                 }
                 discovery |> State.run wallet)
-

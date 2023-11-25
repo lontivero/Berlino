@@ -1,8 +1,8 @@
 namespace Berlino
 
 open System
-open System.Collections.Generic
 open System.Linq
+open NBitcoin
 
 [<AutoOpen>]
 module Exception =
@@ -117,3 +117,7 @@ module Runner =
 
     let forever state doWork =
         loopWhile state (fun _ -> true) doWork
+
+[<AutoOpen>]
+module Types =
+    type TransactionId = uint256

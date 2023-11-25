@@ -30,10 +30,10 @@ module Wallet =
         let (destination, change), usedWallet = createDestinations () |> State.run newWallet
         let transactionChain = generateTransactionChain destination change
 
-        let utxoExistingWallet, existingWallet  = transactionChain |> State.run usedWallet
-        let utxoRecoveredWallet, recoveredWallet = transactionChain |> State.run newWallet
-        Assert.Equal(Money.Coins 0.3m, Outputs.balance utxoExistingWallet)
-        Assert.Equal<Outputs.Output seq>(utxoRecoveredWallet, utxoExistingWallet)
+        let existingWalletState, existingWallet  = transactionChain |> State.run usedWallet
+        let recoveredWalletState, recoveredWallet = transactionChain |> State.run newWallet
+        Assert.Equal(Money.Coins 0.3m, Outputs.balance existingWalletState)
+        Assert.Equal<Outputs.Output seq>(recoveredWalletState.Outputs, existingWalletState.Outputs)
         Assert.Equal<Set<string * string>>(
             existingWallet.Metadata |> List.map (fun (k,v) -> k.ToString(), v) |> Set.ofList, Set [
                 "84'/0'/0'/1/0", "Pablo"
@@ -49,15 +49,15 @@ module Wallet =
     let ``Can compute entities who know about outputs`` () =
         state {
             let! destination, change = createDestinations ()
-            let! outputs = generateTransactionChain destination change
+            let! walletState = generateTransactionChain destination change
 
             let! wallet = State.get
-            let firstOutput = outputs |> Seq.find (fun x -> x.ScriptPubKeyInfo = change) |> fun x -> x.OutPoint;
-            let knownBy = outputs |> Knowledge.knownBy firstOutput wallet.Metadata
+            let firstOutput = walletState.Outputs |> Seq.find (fun x -> x.ScriptPubKeyInfo = change) |> fun x -> x.OutPoint;
+            let knownBy = walletState |> Knowledge.knownBy firstOutput wallet.Metadata
             Assert.Equal(["Lucas"; "Pablo"], knownBy)
 
-            let secondOutput = outputs |> Seq.find (fun x -> x.ScriptPubKeyInfo = destination) |> fun x -> x.OutPoint;
-            let knownBy = outputs |> Knowledge.knownBy secondOutput wallet.Metadata
+            let secondOutput = walletState.Outputs |> Seq.find (fun x -> x.ScriptPubKeyInfo = destination) |> fun x -> x.OutPoint;
+            let knownBy = walletState |> Knowledge.knownBy secondOutput wallet.Metadata
             Assert.Equal(["Lucas"], knownBy)
         } |> State.run (createNewWallet Network.Main)
 
