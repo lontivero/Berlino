@@ -26,7 +26,7 @@ let fetchFilters (filterChunkGetter : FiltersChunkFetcher) blockId =
         | Ok filters ->
             yield filters
             let lastFilter = List.last filters
-            yield! loop lastFilter.BlockHash
+            yield! loop lastFilter.Header.BlockHash
         | Error e ->
             Console.WriteLine ""
     }

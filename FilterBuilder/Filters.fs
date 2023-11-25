@@ -49,8 +49,11 @@ module Filters
                 let! verboseBlockInfo = inbox.Receive()
                 let filter = build verboseBlockInfo
                 let filterData = {
-                     BlockHash = verboseBlockInfo.Hash
-                     PrevBlockHash = verboseBlockInfo.PrevBlockHash
+                     Header = {
+                        BlockHash = verboseBlockInfo.Hash
+                        PrevBlockHash = verboseBlockInfo.PrevBlockHash
+                        Height = int64 verboseBlockInfo.Height
+                     }
                      Filter = filter }
                 let! result = saveFilter filterData
                 saveEvent.Trigger filterData

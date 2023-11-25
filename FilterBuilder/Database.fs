@@ -16,10 +16,12 @@ module Database
             CREATE TABLE IF NOT EXISTS filters (
                 block_hash BLOB NOT NULL,
                 prev_block_hash BLOB NOT NULL,
+                height INTEGER NOT NULL,
                 filter BLOB NOT NULL
                 );
 
             CREATE UNIQUE INDEX IF NOT EXISTS block_hash_index ON filters(block_hash);
+            CREATE UNIQUE INDEX IF NOT EXISTS block_height_index ON filters(height);
             """
         |> Sql.executeCommand
         |> Result.map (fun _ -> ())
@@ -27,11 +29,12 @@ module Database
     let save connection (filter : FilterData) =
         connection
         |> Sql.query
-            "INSERT INTO filters(block_hash, prev_block_hash, filter)
-                VALUES (@block_hash, @prev_block_hash, @filter)"
+            "INSERT INTO filters(block_hash, prev_block_hash, height, filter)
+                VALUES (@block_hash, @prev_block_hash, @height, @filter)"
         |> Sql.parameters [
-            "@block_hash", Sql.bytes (filter.BlockHash.ToBytes())
-            "@prev_block_hash", Sql.bytes (filter.PrevBlockHash.ToBytes())
+            "@block_hash", Sql.bytes (filter.Header.BlockHash.ToBytes())
+            "@prev_block_hash", Sql.bytes (filter.Header.PrevBlockHash.ToBytes())
+            "@height", Sql.int64 filter.Header.Height
             "@filter", Sql.bytes (filter.Filter.ToBytes()) ]
         |> Sql.executeNonQueryAsync
 
@@ -55,7 +58,10 @@ module Database
             "@count", Sql.int howMany]
         |> Sql.executeAsync (fun reader ->
             {
-              BlockHash = uint256 (reader.bytes "block_hash")
-              PrevBlockHash = uint256 (reader.bytes "prev_block_hash")
+              Header = {
+                  BlockHash = uint256 (reader.bytes "block_hash")
+                  PrevBlockHash = uint256 (reader.bytes "prev_block_hash")
+                  Height = reader.int64 "height"
+              }
               Filter = GolombRiceFilter (reader.bytes "filter")
             })
