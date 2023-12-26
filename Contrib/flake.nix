@@ -12,7 +12,7 @@
     flake-utils,
   }:
     flake-utils.lib.eachDefaultSystem (system: let
-      pkgs = nixpkgs.legacyPackages.${system};
+      pkgs = import nixpkgs { inherit system; config.allowUnfree = true; };
       code-coverage-report = pkgs.callPackage ./coverage.nix {};
       git-hooks = pkgs.callPackage ./trailing-spaces.nix {};
     in {
@@ -37,6 +37,8 @@
             websocat
             git-hooks
             code-coverage-report
+            zlib # Aot
+            jetbrains.rider
           ];
 
           DOTNET_ROOT = "${dotnet-sdk_8}";
