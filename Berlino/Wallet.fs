@@ -60,7 +60,7 @@ module ScriptPubKeyDescriptor =
             Fingerprint = fingerprint
             ScriptType = scriptType
             Purpose = scriptPurpose
-            KeyPath = keyPath
+            KeyPath = keyPath.Derive(purposeIndex scriptPurpose)
             Gap = minGapLimit
         }
 
@@ -85,7 +85,7 @@ module ScriptPubKeyDescriptor =
                 ScriptPubKey = scp
                 Index = i
                 Generator = sg
-                KeyPath = sg.KeyPath.Derive(purposeIndex sg.Purpose).Derive(i)
+                KeyPath = sg.KeyPath.Derive(i)
                 }
         memoizeN memoizableFun
 
@@ -353,8 +353,8 @@ module Wallet =
 
     let getNextScriptByKeyPath (keyPath : KeyPath) wallet =
         wallet.Metadata
-        |> List.tryFindBack (fun (k, _) -> k = keyPath)
-        |> Option.map (fun (k, _) -> k.Indexes[-1] + 1u)
+        |> List.tryFindBack (fun (k, _) -> k.Parent = keyPath)
+        |> Option.map (fun (k, _) -> k.Indexes[k.Indexes.Length - 1] + 1u)
         |> Option.defaultValue 0u
 
     let getAllScriptPubKeys (wallet : Wallet) =
