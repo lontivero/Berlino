@@ -13,6 +13,7 @@
         <Compile Include="Serialization.fs" />
         <Compile Include="RpcClient.fs" />
         <Compile Include="Wallet.fs" />
+        <Compile Include="WalletService.fs" />
     </ItemGroup>
 
     <ItemGroup>
@@ -22,3 +23,5 @@
     </ItemGroup>
 
 </Project>
+
+
