@@ -9,8 +9,8 @@ open Xunit
 module Wallet =
 
     let createDestinations () = state {
-        let! destination = Wallet.getNextScriptPubKeyForReceiving ScriptType.P2WPKH "Lucas"
-        let! change = Wallet.getNextScriptPubKeyForChange ScriptType.P2WPKH "Pablo"
+        let! destination = Wallet.getNextScriptPubKeyForReceiving ScriptPubKeyType.Segwit "Lucas"
+        let! change = Wallet.getNextScriptPubKeyForChange ScriptPubKeyType.Segwit "Pablo"
         return (destination, change)
     }
 
@@ -54,11 +54,12 @@ module Wallet =
             let! wallet = State.get
             let scriptPubKeys = wallet |> Wallet.getAllScriptPubKeys
             let outputs = Outputs.allOutputs scriptPubKeys relevantTransactions
-            let firstOutput = outputs |> Seq.find (fun x -> x.ScriptPubKeyInfo = change) |> fun x -> x.OutPoint;
+            let firstOutput = outputs |> Seq.find (fun x -> x.ScriptPubKeyInfo = change) |> _.OutPoint;
             let knownBy = Knowledge.knownBy firstOutput wallet.Metadata scriptPubKeys relevantTransactions
-            Assert.Equal(["Lucas"; "Pablo"], knownBy)
+            let expected = ["Lucas"; "Pablo"] |> Set.ofList
+            Assert.Equal<Set<string>>(expected, knownBy)
 
-            let secondOutput = outputs |> Seq.find (fun x -> x.ScriptPubKeyInfo = destination) |> fun x -> x.OutPoint;
+            let secondOutput = outputs |> Seq.find (fun x -> x.ScriptPubKeyInfo = destination) |> _.OutPoint;
             let knownBy = Knowledge.knownBy secondOutput wallet.Metadata scriptPubKeys relevantTransactions
             Assert.Equal(["Lucas"], knownBy)
         } |> State.run (Wallet.createNew Network.Main)

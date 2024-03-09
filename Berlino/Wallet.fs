@@ -4,6 +4,7 @@ open System
 open System.Collections.Generic
 open NBitcoin
 open FSharpPlus
+open NBitcoin.Scripting
 open Thoth.Json.Net
 
 module ScriptPubKeyDescriptor =
@@ -18,11 +19,10 @@ module ScriptPubKeyDescriptor =
         | Change -> 1u
         | CoinJoin -> 2u
 
+
     type ScriptPubKeyDescriptor = {
-        ExtPubKey: ExtPubKey
-        Fingerprint : HDFingerprint
+        Descriptor : OutputDescriptor
         KeyPath : KeyPath
-        ScriptType: ScriptType
         Purpose: ScriptPurpose
         Gap : uint
     }
@@ -54,11 +54,12 @@ module ScriptPubKeyDescriptor =
 
     type ScriptPubKeyInfoSet = Set<ScriptPubKeyInfo>
 
-    let create (extPubKey : ExtPubKey) (fingerprint : HDFingerprint) (keyPath : KeyPath) scriptType scriptPurpose minGapLimit =
+    let create (extPubKey : ExtPubKey) (fingerprint : HDFingerprint) (keyPath : KeyPath) (network : Network) scriptType scriptPurpose minGapLimit =
+        let scriptFun = if scriptType = ScriptType.P2WPKH then "wpkh" else "tr"
+        let extPubKey = extPubKey.ToString(network)
+        let index = purposeIndex scriptPurpose
         {
-            ExtPubKey = extPubKey
-            Fingerprint = fingerprint
-            ScriptType = scriptType
+            Descriptor = OutputDescriptor.Parse($"{scriptFun}([{fingerprint}/{keyPath}]{extPubKey}/{index}/*)", network)
             Purpose = scriptPurpose
             KeyPath = keyPath.Derive(purposeIndex scriptPurpose)
             Gap = minGapLimit
@@ -71,22 +72,18 @@ module ScriptPubKeyDescriptor =
         | ScriptType.P2PKH -> pubkey.GetScriptPubKey(ScriptPubKeyType.Legacy)
         | _ -> failwith $"Unknown script type {scriptType}"
 
-    let deriveExtPubKeyForPurpose =
-        let memoizableFun (extPubKey : ExtPubKey) (purpose : ScriptPurpose) =
-            purpose |> purposeIndex |> extPubKey.Derive
-        memoizeN memoizableFun
-
     let derive =
         let memoizableFun (sg : ScriptPubKeyDescriptor) (i : uint) =
-            deriveExtPubKeyForPurpose sg.ExtPubKey sg.Purpose
-            |> fun extPubKey -> extPubKey.Derive(i).PubKey
-            |> getScriptPubKey sg.ScriptType
-            |> fun scp -> {
+            let found, outputs = sg.Descriptor.TryExpand(i, FlatSigningRepository())
+            Option.ofPair (found, outputs)
+            |> Option.map (fun os -> os[0])
+            |> Option.map (fun scp -> {
                 ScriptPubKey = scp
                 Index = i
                 Generator = sg
                 KeyPath = sg.KeyPath.Derive(i)
-                }
+                })
+            |> Option.get
         memoizeN memoizableFun
 
     let deriveRange sg start count =
@@ -112,15 +109,13 @@ module ScriptPubKeyDescriptor =
 
         let scriptType : Decoder<ScriptType> =
             Decode.string |> Decode.andThen (function
-                | "taproot" -> Decode.succeed ScriptType.Taproot
+                | "tr" -> Decode.succeed ScriptType.Taproot
                 | "wpkh"    -> Decode.succeed ScriptType.P2WPKH
                 | scriptType -> Decode.fail $"Unknown script's type '{scriptType}'")
 
         let scriptPubKeyDescriptor (network : Network) : Decoder<ScriptPubKeyDescriptor> =
             Decode.object(fun get -> {
-                ExtPubKey = get.Required.Field "extPubKey" (Decode.extPubKey network)
-                Fingerprint = get.Required.Field "fingerprint" Decode.fingerprint
-                ScriptType = get.Required.Field "scriptType" scriptType
+                Descriptor = get.Required.Field "descriptor" (Decode.outputDescriptor network)
                 Purpose = get.Required.Field "scriptPurpose" scriptPurpose
                 KeyPath = get.Required.Field "keyPath" Decode.keyPath
                 Gap = get.Required.Field "gap" Decode.uint32
@@ -139,16 +134,14 @@ module ScriptPubKeyDescriptor =
 
         let scriptType (scriptType : ScriptType) =
             match scriptType with
-            | ScriptType.Taproot -> "taproot"
+            | ScriptType.Taproot -> "tr"
             | ScriptType.P2WPKH -> "wpkh"
             | _ -> failwith $"Unsupported script type {scriptType}"
             |> Encode.string
 
-        let scriptPubKeyDescriptor (network : Network) (d : ScriptPubKeyDescriptor) =
+        let scriptPubKeyDescriptor (d : ScriptPubKeyDescriptor) =
             Encode.object [
-                "extPubKey", Encode.extPubKey d.ExtPubKey network
-                "fingerprint", Encode.fingerprint d.Fingerprint
-                "scriptType", scriptType d.ScriptType
+                "descriptor", Encode.outputDescriptor d.Descriptor
                 "scriptPurpose", scriptPurpose d.Purpose
                 "keyPath", Encode.keyPath d.KeyPath
                 "gap", Encode.uint32 d.Gap
@@ -218,7 +211,7 @@ module Outputs =
         let memoizableFun (scriptPubKeys : ScriptPubKeyInfoSet) (transactions : TransactionSet) =
             transactions
             |> Seq.collect (fun tx -> tx.Outputs |> Seq.mapi (fun i o -> OutPoint(tx.GetHash(), i), o))
-            |> Seq.join scriptPubKeys (fun (_, output) -> output.ScriptPubKey) (fun s -> s.ScriptPubKey)
+            |> Seq.join scriptPubKeys (fun (_, output) -> output.ScriptPubKey) (_.ScriptPubKey)
             |> Seq.map (fun ((prevOut, output), scriptPubKeyInfo) -> {
                 OutPoint = prevOut
                 Amount = output.Value
@@ -233,7 +226,7 @@ module Outputs =
                 |> Seq.collect prevOuts
 
             allOutputs scriptPubKeys transactions
-            |> Seq.alsoInBy (fun x -> x.OutPoint) allInputsSpent
+            |> Seq.alsoInBy (_.OutPoint) allInputsSpent
         memoizeN memoizableFun
 
     let unspent (scriptPubKeys : ScriptPubKeyInfoSet) (transactions : TransactionSet) =
@@ -246,11 +239,11 @@ module Outputs =
         |> Seq.sumBy _.Amount
 
     let discoverOutputs (scriptPubKeyInfoSet : ScriptPubKeyInfoSet) (tx : Transaction) =
-        let scriptPubKeys = tx.Outputs |> Seq.map (fun o -> o.ScriptPubKey) |> HashSet
+        let scriptPubKeys = tx.Outputs |> Seq.map (_.ScriptPubKey) |> HashSet
 
         scriptPubKeyInfoSet
         |> Seq.filter (fun spkInfo -> scriptPubKeys.Contains spkInfo.ScriptPubKey)
-        |> Seq.map (fun spkInfo -> spkInfo.KeyPath)
+        |> Seq.map (_.KeyPath)
         |> Seq.distinct
 
 [<RequireQualifiedAccess>]
@@ -279,8 +272,6 @@ module Knowledge =
 
     [<RequireQualifiedAccess>]
     module Decode =
-        open Berlino.Serialization
-
         let metadata : Decoder<(KeyPath * string) list> =
             Decode.string
             |> Decode.keyValuePairs
@@ -288,8 +279,6 @@ module Knowledge =
 
     [<RequireQualifiedAccess>]
     module Encode =
-        open Berlino.Serialization
-
         let metadata (metadata : Label list) =
             metadata
             |> List.map (fun (kp, l) -> kp.ToString(), Encode.string l)
@@ -323,7 +312,7 @@ module Wallet =
         let wallet (wallet : Wallet) =
             Encode.object [
                 "network", wallet.Network |> Encode.network
-                "descriptors", wallet.Descriptors |> List.map (Encode.scriptPubKeyDescriptor wallet.Network) |> Encode.list
+                "descriptors", wallet.Descriptors |> List.map (Encode.scriptPubKeyDescriptor) |> Encode.list
                 "metadata", wallet.Metadata |> Knowledge.Encode.metadata
              ]
     type WalletTransformer<'a> = State<Wallet, 'a>
@@ -338,11 +327,11 @@ module Wallet =
         {
             Network = network
             Descriptors = [
-                create segwitExtPubKey  fingerprint segwitKeyPath ScriptType.P2WPKH ScriptPurpose.Receiving 20u
-                create segwitExtPubKey  fingerprint segwitKeyPath ScriptType.P2WPKH ScriptPurpose.Change 10u
-                create taprootExtPubKey fingerprint taprootKeyPath ScriptType.Taproot ScriptPurpose.Receiving 20u
-                create taprootExtPubKey fingerprint taprootKeyPath ScriptType.Taproot ScriptPurpose.Change 10u
-                create taprootExtPubKey fingerprint taprootKeyPath ScriptType.Taproot ScriptPurpose.CoinJoin 30u
+                create segwitExtPubKey  fingerprint segwitKeyPath network ScriptType.P2WPKH ScriptPurpose.Receiving 20u
+                create segwitExtPubKey  fingerprint segwitKeyPath network ScriptType.P2WPKH ScriptPurpose.Change 10u
+                create taprootExtPubKey fingerprint taprootKeyPath network ScriptType.Taproot ScriptPurpose.Receiving 20u
+                create taprootExtPubKey fingerprint taprootKeyPath network ScriptType.Taproot ScriptPurpose.Change 10u
+                create taprootExtPubKey fingerprint taprootKeyPath network ScriptType.Taproot ScriptPurpose.CoinJoin 30u
                 ]
             Metadata = []
         }
@@ -351,26 +340,27 @@ module Wallet =
         let mnemonic = Mnemonic(Wordlist.English, WordCount.Twelve)
         recover mnemonic network
 
-    let getNextScriptByKeyPath (keyPath : KeyPath) wallet =
+    let getNextScriptIndexByKeyPath (keyPath : KeyPath) wallet =
         wallet.Metadata
-        |> List.tryFindBack (fun (k, _) -> k.Parent = keyPath)
-        |> Option.map (fun (k, _) -> k.Indexes[k.Indexes.Length - 1] + 1u)
+        |> Seq.map fst
+        |> Seq.tryFindBack (fun k -> k.Parent = keyPath)
+        |> Option.map (fun k -> k.Indexes[k.Indexes.Length - 1] + 1u)
         |> Option.defaultValue 0u
 
     let getAllScriptPubKeys (wallet : Wallet) =
         let generators =
             wallet.Descriptors
             // |> List.filter (fun g -> g.Purpose <> ScriptPurpose.Change)
-            |> List.map (fun g -> g, g.Gap + (getNextScriptByKeyPath g.KeyPath wallet))
+            |> List.map (fun g -> g, g.Gap + (getNextScriptIndexByKeyPath g.KeyPath wallet))
         getScriptPubKeys generators
 
     let getNextScriptPubKey scriptType purpose knownBy : WalletTransformer<ScriptPubKeyInfo> =
         fun (wallet : Wallet) ->
             let g =
                 wallet.Descriptors
-                |> List.find (fun g -> g.Purpose = purpose && g.ScriptType = scriptType)
+                |> List.find (fun g -> g.Purpose = purpose && g.Descriptor.GetScriptPubKeyType() |> Option.ofNullable |> Option.contains scriptType)
 
-            let nextIndex = getNextScriptByKeyPath g.KeyPath wallet
+            let nextIndex = getNextScriptIndexByKeyPath g.KeyPath wallet
             let script = derive g nextIndex
             let newWallet = {
                 wallet with

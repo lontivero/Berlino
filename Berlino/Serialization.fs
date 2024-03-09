@@ -1,6 +1,7 @@
 module Berlino.Serialization
 
     open NBitcoin
+    open NBitcoin.Scripting
     open Thoth.Json.Net
 
     [<RequireQualifiedAccess>]
@@ -26,11 +27,11 @@ module Berlino.Serialization
                  let n = get.Required.Field "vout" Decode.uint32
                  OutPoint(txid, n))
 
-        let extPubKey (network : Network) : Decoder<ExtPubKey> =
+        let outputDescriptor (network : Network) : Decoder<OutputDescriptor> =
             Decode.string
-            |> Decode.andThen (fun epk ->
-                match ExtPubKey.Parse (epk, network) with
-                | null -> Decode.fail $"Invalid extpubkey '{epk}' for network '{network}'"
+            |> Decode.andThen (fun od ->
+                match OutputDescriptor.Parse (od, network) with
+                | null -> Decode.fail $"Invalid Output Descriptor '{od}' for network '{network}'"
                 | v -> Decode.succeed v)
 
         let fingerprint : Decoder<HDFingerprint> =
@@ -54,8 +55,8 @@ module Berlino.Serialization
 
     [<RequireQualifiedAccess>]
     module Encode =
-        let extPubKey (extPubKey : ExtPubKey) (network : Network) =
-            Encode.string (extPubKey.GetWif(network).ToString())
+        let outputDescriptor (outputDescriptor : OutputDescriptor) =
+            Encode.string (outputDescriptor.ToString())
 
         let fingerprint (fp : HDFingerprint) =
             Encode.string (fp.ToString())

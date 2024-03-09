@@ -9,9 +9,9 @@ module WalletService =
 
     type Message =
         | MsgBlock of Block
-        | MsgNewReceivingAddress of ScriptType * string * AsyncReplyChannel<ScriptPubKeyInfo>
-        | MsgNewChangeAddress of ScriptType * string * AsyncReplyChannel<ScriptPubKeyInfo>
-        | MsgNewConjoinAddress of ScriptType * AsyncReplyChannel<ScriptPubKeyInfo>
+        | MsgNewReceivingAddress of ScriptPubKeyType * string * AsyncReplyChannel<ScriptPubKeyInfo>
+        | MsgNewChangeAddress of ScriptPubKeyType * string * AsyncReplyChannel<ScriptPubKeyInfo>
+        | MsgNewConjoinAddress of ScriptPubKeyType * AsyncReplyChannel<ScriptPubKeyInfo>
 
     let startWallet wallet =
         MailboxProcessor<Message>.Start (fun inbox -> async {
