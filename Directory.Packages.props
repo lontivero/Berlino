@@ -5,18 +5,16 @@
   <ItemGroup>
     <PackageVersion Include="FSharp.Control.AsyncSeq" Version="3.2.1" />
     <PackageVersion Include="FSharpPlus" Version="1.4.1" />
-    <PackageVersion Include="NBitcoin" Version="7.0.27" />
+    <PackageVersion Include="NBitcoin" Version="7.0.36" />
     <PackageVersion Include="Suave" Version="2.6.2" />
     <PackageVersion Include="Thoth.Json.Net" Version="11.0.0" />
     <PackageVersion Include="Fumble" Version="1.0.1" />
-
     <!-- Configuration -->
     <PackageVersion Include="Microsoft.Extensions.Configuration" Version="7.0.0" />
     <PackageVersion Include="Microsoft.Extensions.Configuration.Binder" Version="7.0.4" />
     <PackageVersion Include="Microsoft.Extensions.Configuration.CommandLine" Version="7.0.0" />
     <PackageVersion Include="Microsoft.Extensions.Configuration.EnvironmentVariables" Version="7.0.0" />
     <PackageVersion Include="Microsoft.Extensions.Configuration.Json" Version="7.0.0" />
-
     <!-- Unit testing -->
     <PackageVersion Include="Microsoft.NET.Test.Sdk" Version="17.5.0" />
     <PackageVersion Include="xunit" Version="2.4.2" />
